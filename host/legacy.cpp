@@ -25,6 +25,7 @@
 #include <apacmdln.h>
 #include <fbs.h>
 #include <AknIconUtils.h>
+#include <AknIconSrvClient.h>
 
 namespace {
 
@@ -164,6 +165,35 @@ void Utf8(const TDesC& aIn, TDes8& aOut)
 		}
 	}
 
+// The type of a MIF file's first icon (mifconvdefs.h: 0 bitmap, 1 SVG, 2 NVG; -1 unreadable): the file header
+// {uid, version, index offset, count}, the index {offset, length} per id, the icon header {uid, version, data offset,
+// data length, type, ...}
+TInt MifIconType(const TDesC& aFile)
+	{
+	RFs fs;
+	if (fs.Connect() != KErrNone)
+		return -1;
+	TInt type = -1;
+	RFile f;
+	if (f.Open(fs, aFile, EFileRead | EFileShareReadersOnly) == KErrNone)
+		{
+		TBuf8<20> b;
+		if (f.Read(0, b, 16) == KErrNone && b.Length() == 16)
+			{
+			const TInt index = Le32(b, 8);
+			if (f.Read(index, b, 8) == KErrNone && b.Length() == 8)
+				{
+				const TInt at = Le32(b, 0);
+				if (f.Read(at, b, 20) == KErrNone && b.Length() == 20)
+					type = Le32(b, 16);
+				}
+			}
+		f.Close();
+		}
+	fs.Close();
+	return type;
+	}
+
 // The app's icon (its registration's icon file: a MIF, ids from 16384, or an MBM, ids from 0) rasterized by Avkon's
 // icon server at KIconSize, as neoui's ENTRY icon: width, height (u16), then 0xAARRGGBB pixels from the bitmap and
 // its mask. Empty when the app has none or it cannot be drawn (neoui shows its generic tile).
@@ -178,6 +208,14 @@ void IconL(RApaLsSession& aLs, TUid aUid, RBuf8& aOut)
 		}
 	CleanupStack::PushL(file);
 	const TBool mif = file->Right(4).CompareF(_L(".mif")) == 0;
+	// shortcut: no SVG-T engine yet (mw.svgt + software OpenVG, the next milestone): the icon server would call its
+	// unimplemented stubs, so an SVG icon gets the generic tile
+	if (mif && MifIconType(*file) != 0)
+		{
+		RDebug::Printf("legacy: app %08x: a vector icon, no SVG engine yet", aUid.iUid);
+		CleanupStack::PopAndDestroy(file);
+		return;
+		}
 	CFbsBitmap* bitmap = NULL;
 	CFbsBitmap* mask = NULL;
 	AknIconUtils::CreateIconL(bitmap, mask, *file, mif ? 16384 : 0, mif ? 16385 : 1);
@@ -209,7 +247,7 @@ struct TOldApp
 	};
 
 // Every app AppArc knows (once its first scan is done), except hidden ones, to neoui as launcher entries
-void PublishL(RNeoUi& aUi, RApaLsSession& aLs, RArray<TOldApp>& aApps)
+void PublishL(RNeoUi& aUi, RApaLsSession& aLs, RArray<TOldApp>& aApps, TBool aIcons)
 	{
 	TRequestStatus scanned, timeout;
 	RTimer timer;
@@ -239,7 +277,11 @@ void PublishL(RNeoUi& aUi, RApaLsSession& aLs, RArray<TOldApp>& aApps)
 		if (aLs.GetAppCapability(cap, info.iUid) == KErrNone && cap().iAppIsHidden)
 			continue;
 		RBuf8 icon;
-		TRAPD(iconErr, IconL(aLs, info.iUid, icon));
+		TInt iconErr = KErrNone;
+		if (aIcons)
+			{
+			TRAP(iconErr, IconL(aLs, info.iUid, icon));
+			}
 		if (iconErr)
 			{
 			RDebug::Printf("legacy: app %08x: icon failed (%d)", info.iUid.iUid, iconErr);
@@ -364,15 +406,21 @@ TInt Run()
 	else
 		{
 		const TInt fbs = RFbsSession::Connect();		// the icons' bitmaps (fbserv runs with the window server)
+		// Avkon's icon server session, as CEikonEnv opens it for an app (AknIconUtils faults without it)
+		const TInt icons = RAknIconSrvClient::Connect();
+		if (icons)
+			RDebug::Printf("legacy: no icon server (%d): generic tiles", icons);
 		// the apparc server: started at boot on a 2010 phone (the starter), by us here
 		if ((err = ls.Connect()) == KErrNotFound && (err = StartupApaServerProcess()) == KErrNone)
 			err = ls.Connect();
 		if (err == KErrNone)
 			{
-			TRAP(err, PublishL(ui, ls, apps));
+			TRAP(err, PublishL(ui, ls, apps, icons == KErrNone));
 			}
 		if (err)
 			RDebug::Printf("legacy: listing the apps failed (%d)", err);	// an empty grid
+		if (icons == KErrNone)
+			RAknIconSrvClient::Disconnect();
 		if (fbs == KErrNone)
 			RFbsSession::Disconnect();
 		}
