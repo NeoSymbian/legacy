@@ -475,21 +475,10 @@ def main():
         specs = install(a[1:], os.path.join(REPO, ".sis-build"))
         print("\n".join(specs))
         # the same files in the ROM (Z:) too: the phone keeps its own eMMC C:, so there only Z: carries them
-        exes = [
-            z
-            for z, _ in (sp.split("=", 1) for sp in specs)
-            if z.lower().endswith(".exe")
-        ]
-        legacy = os.path.join(REPO, ".sis-build", "legacy.txt")
-        with open(
-            legacy, "w"
-        ) as fh:  # LEGACY (neoui's Old apps) runs the first package's program
-            fh.write(os.path.basename(exes[0]) if exes else "")
         with open(os.path.join(REPO, "emitter", "sis_rom.args"), "w") as fh:
             for spec in specs:
                 z, host = spec.split("=", 1)
                 fh.write(f"--data\n{z.replace('/', chr(92))}={host}\n")
-            fh.write(f"--data\nResource\\legacy.txt={os.path.relpath(legacy, REPO)}\n")
     elif a[0] == "romcheck":
         romcheck(
             a[1] if len(a) > 1 else os.path.join(REPO, ".ekern-build", "rombuild.args")
