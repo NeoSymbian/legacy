@@ -23,6 +23,8 @@ XML = "oss.FCL.sf.os.xmlsrv"
 OPENC = "oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore"
 # Open C's headers mark float functions __SOFTFP (RVCT's __softfp); ours is the soft-float ABI already
 OPENC_DEFS = ["__SOFTFP="]
+# STLport takes std::nothrow_t from symcpp.h, which RVCT's prefix header included (as scppnwdl's entry does)
+SYMCPP = ["-include", os.path.join(SRC, KCS, "symcpp", "symcpp.h")]
 # FindUtil.h is only in classicui master (BRANCH_RCL_3 dropped findutil_api): that one directory, not master's headers
 FINDUTIL_INC = ["-I", os.path.join(SRC, "oss.FCL.sf.mw.classicui@master", "classicui_plat", "findutil_api", "inc")]
 
@@ -190,14 +192,16 @@ COMPONENTS = {
     "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp", c_sources=True, defs=OPENC_DEFS),
     "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
     "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
-    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, flags=["-fexceptions"]),
+    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True,
+                      flags=["-fexceptions", *SYMCPP]),
     "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
     "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
     "timezonelocalization": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzloc/group/TimeZoneLocalization.mmp"),
     "libopenvg_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
     "libopenvgu_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
     "libegl_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
-    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
+    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True,
+                               flags=["-fexceptions", *SYMCPP]),
     "libvgi": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/vgi.mmp"),
     # the image decoders' framework (the engine's <image> elements; an icon of paths never calls it)
     "imageprocessorperf": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageProcessorPerf.mmp"),
