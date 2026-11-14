@@ -192,7 +192,7 @@ COMPONENTS = {
     "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp", c_sources=True, defs=OPENC_DEFS),
     "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
     "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
-    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True,
+    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, cxx_runtime=True,
                       flags=["-fexceptions", *SYMCPP]),
     "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
     "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
@@ -200,7 +200,7 @@ COMPONENTS = {
     "libopenvg_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
     "libopenvgu_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
     "libegl_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
-    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True,
+    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, cxx_runtime=True,
                                flags=["-fexceptions", *SYMCPP]),
     "libvgi": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/vgi.mmp"),
     # the image decoders' framework (the engine's <image> elements; an icon of paths never calls it)
