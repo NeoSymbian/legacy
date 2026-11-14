@@ -21,6 +21,8 @@ SFVG = f"{G}/openvg/openvgrefimplementation/sfopenvg"   # the software OpenVG + 
 SVGT = "oss.FCL.sf.mw.svgt"
 XML = "oss.FCL.sf.os.xmlsrv"
 OPENC = "oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore"
+# Open C's headers mark float functions __SOFTFP (RVCT's __softfp); ours is the soft-float ABI already
+OPENC_DEFS = ["__SOFTFP="]
 # FindUtil.h is only in classicui master (BRANCH_RCL_3 dropped findutil_api): that one directory, not master's headers
 FINDUTIL_INC = ["-I", os.path.join(SRC, "oss.FCL.sf.mw.classicui@master", "classicui_plat", "findutil_api", "inc")]
 
@@ -181,22 +183,22 @@ COMPONENTS = {
     # links the C libraries (the old one, estlib, and Open C under sfopenvg) ---
     "xmlinterface": dict(mmp=f"{XML}/xml/xmlparser/group/XMLInterface.mmp"),
     "cxmlparser": dict(mmp=f"{XML}/xml/cxmllibrary/group/cXmlParser.mmp"),
-    "estlib": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/BMMP/ESTLIB.MMP"),
+    "estlib": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/BMMP/ESTLIB.MMP", c_sources=True, defs=OPENC_DEFS),
     "redircli": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/RedirCli/REDIRCLI.MMP"),
     "c32": dict(mmp="oss.FCL.sf.os.commsfw/serialserver/c32serialserver/group/C32.MMP"),
-    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp"),
-    "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp"),
-    "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp"),
-    "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp"),
-    "libstdcpp": dict(mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, flags=["-fexceptions"]),
+    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
+    "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, flags=["-fexceptions"]),
     "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
     "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
     "timezonelocalization": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzloc/group/TimeZoneLocalization.mmp"),
-    "libopenvg_sw": dict(mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
-    "libopenvgu_sw": dict(mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
-    "libegl_sw": dict(mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
-    "sflibopenvgrefimpl": dict(mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
-    "libvgi": dict(mmp=f"{SFVG}/group/vgi.mmp"),
+    "libopenvg_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
+    "libopenvgu_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
+    "libegl_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
+    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
+    "libvgi": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/vgi.mmp"),
     # the image decoders' framework (the engine's <image> elements; an icon of paths never calls it)
     "imageprocessorperf": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageProcessorPerf.mmp"),
     "imageconversion": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageConversion.mmp"),
@@ -204,6 +206,7 @@ COMPONENTS = {
     "mmcommon": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommon.mmp"),
     "svgengine": dict(mmp=f"{SVGT}/svgtopt/SVG/SVGEngine/group/SVGEngine.mmp",
                       flags=["-D__int64=long long"],   # Gfxmath.h's RVCT/MSVC keyword
+                      c_sources=True,                  # GfxMath.c: C linkage, as its callers declare it
                       **{"def": f"{SVGT}/svgtopt/SVG/SVGEngine/eabi/SVGENGINE-OpenVGU.def"}),
     "vgrenderer": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/group/VGRenderer.mmp"),
     "swvg": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/SWVG/group/SWVG.mmp",
