@@ -21,6 +21,7 @@
 #include <f32file.h>
 #include <w32std.h>
 #include <apgcli.h>
+#include <apasvst.h>
 #include <apacmdln.h>
 #include <fbs.h>
 #include <AknIconUtils.h>
@@ -363,7 +364,10 @@ TInt Run()
 	else
 		{
 		const TInt fbs = RFbsSession::Connect();		// the icons' bitmaps (fbserv runs with the window server)
-		if ((err = ls.Connect()) == KErrNone)
+		// the apparc server: started at boot on a 2010 phone (the starter), by us here
+		if ((err = ls.Connect()) == KErrNotFound && (err = StartupApaServerProcess()) == KErrNone)
+			err = ls.Connect();
+		if (err == KErrNone)
 			{
 			TRAP(err, PublishL(ui, ls, apps));
 			}
