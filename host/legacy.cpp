@@ -165,35 +165,6 @@ void Utf8(const TDesC& aIn, TDes8& aOut)
 		}
 	}
 
-// The type of a MIF file's first icon (mifconvdefs.h: 0 bitmap, 1 SVG, 2 NVG; -1 unreadable): the file header
-// {uid, version, index offset, count}, the index {offset, length} per id, the icon header {uid, version, data offset,
-// data length, type, ...}
-TInt MifIconType(const TDesC& aFile)
-	{
-	RFs fs;
-	if (fs.Connect() != KErrNone)
-		return -1;
-	TInt type = -1;
-	RFile f;
-	if (f.Open(fs, aFile, EFileRead | EFileShareReadersOnly) == KErrNone)
-		{
-		TBuf8<20> b;
-		if (f.Read(0, b, 16) == KErrNone && b.Length() == 16)
-			{
-			const TInt index = Le32(b, 8);
-			if (f.Read(index, b, 8) == KErrNone && b.Length() == 8)
-				{
-				const TInt at = Le32(b, 0);
-				if (f.Read(at, b, 20) == KErrNone && b.Length() == 20)
-					type = Le32(b, 16);
-				}
-			}
-		f.Close();
-		}
-	fs.Close();
-	return type;
-	}
-
 // The app's icon (its registration's icon file: a MIF, ids from 16384, or an MBM, ids from 0) rasterized by Avkon's
 // icon server at KIconSize, as neoui's ENTRY icon: width, height (u16), then 0xAARRGGBB pixels from the bitmap and
 // its mask. Empty when the app has none or it cannot be drawn (neoui shows its generic tile).
@@ -208,14 +179,6 @@ void IconL(RApaLsSession& aLs, TUid aUid, RBuf8& aOut)
 		}
 	CleanupStack::PushL(file);
 	const TBool mif = file->Right(4).CompareF(_L(".mif")) == 0;
-	// shortcut: no SVG-T engine yet (mw.svgt + software OpenVG, the next milestone): the icon server would call its
-	// unimplemented stubs, so an SVG icon gets the generic tile
-	if (mif && MifIconType(*file) != 0)
-		{
-		RDebug::Printf("legacy: app %08x: a vector icon, no SVG engine yet", aUid.iUid);
-		CleanupStack::PopAndDestroy(file);
-		return;
-		}
 	CFbsBitmap* bitmap = NULL;
 	CFbsBitmap* mask = NULL;
 	AknIconUtils::CreateIconL(bitmap, mask, *file, mif ? 16384 : 0, mif ? 16385 : 1);

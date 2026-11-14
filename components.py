@@ -16,6 +16,11 @@ PDATA = "oss.FCL.sf.os.persistentdata"
 TXT = "oss.FCL.sf.os.textandloc"
 CUI = "oss.FCL.sf.mw.classicui"
 APF = "oss.FCL.sf.mw.appsupport/appfw"
+G = "oss.FCL.sf.os.graphics"
+SFVG = f"{G}/openvg/openvgrefimplementation/sfopenvg"   # the software OpenVG + EGL reference implementation
+SVGT = "oss.FCL.sf.mw.svgt"
+XML = "oss.FCL.sf.os.xmlsrv"
+OPENC = "oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore"
 # FindUtil.h is only in classicui master (BRANCH_RCL_3 dropped findutil_api): that one directory, not master's headers
 FINDUTIL_INC = ["-I", os.path.join(SRC, "oss.FCL.sf.mw.classicui@master", "classicui_plat", "findutil_api", "inc")]
 
@@ -162,14 +167,39 @@ COMPONENTS = {
     "etel3rdparty": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyutils/etel3rdpartyapi/Group/Etel3rdParty.mmp"),
     "mediaclientaudio": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudio.mmp"),
     "mediaclientvideo": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientVideo.mmp"),
-    # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging, the old C
-    # library): the program loads them at start, and calls them only for those features
+    # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging): the program
+    # loads them at start, and calls them only for those features
     "bluetooth": {"stub": 0}, "btextnotifiers": {"stub": 0x1000A5FA}, "sdpagent": {"stub": 0x10009222},
     "sdpdatabase": {"stub": 0x10009220}, "irda": {"stub": 0x10003D54}, "irobex": {"stub": 0x10201EF5},
     "cntmodel": {"stub": 0x10003A71}, "calinterimapi": {"stub": 0x102075E4}, "msgs": {"stub": 0x10004E66},
-    "estlib": {"stub": 0x10003B0B},
     # remote control (headset keys): the release's sources need the Bluetooth logger header it does not export
     "remconcoreapi": {"stub": 0x101F9067}, "remconinterfacebase": {"stub": 0x101F9067},
     "scppnwdl": dict(mmp=f"{KCS}/symcpp/scppnwdl.mmp",      # std::nothrow_t: RVCT's prefix header included this
                      flags=["-include", os.path.join(SRC, KCS, "symcpp", "symcpp.h")], no_gcchelp=True),
+    # --- SVG icons (an app's MIF icon is SVG): Avkon's icon server draws them with the SVG-T engine (mw.svgt) over the
+    # software OpenVG reference implementation (os.graphics sfopenvg); the engine parses with the XML interface and
+    # links the C libraries (the old one, estlib, and Open C under sfopenvg) ---
+    "xmlinterface": dict(mmp=f"{XML}/xml/xmlparser/group/XMLInterface.mmp"),
+    "cxmlparser": dict(mmp=f"{XML}/xml/cxmllibrary/group/cXmlParser.mmp"),
+    "estlib": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/BMMP/ESTLIB.MMP"),
+    "redircli": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/RedirCli/REDIRCLI.MMP"),
+    "c32": dict(mmp="oss.FCL.sf.os.commsfw/serialserver/c32serialserver/group/C32.MMP"),
+    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp"),
+    "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp"),
+    "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp"),
+    "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp"),
+    "libstdcpp": dict(mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, flags=["-fexceptions"]),
+    "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
+    "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
+    "timezonelocalization": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzloc/group/TimeZoneLocalization.mmp"),
+    "libopenvg_sw": dict(mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
+    "libopenvgu_sw": dict(mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
+    "libegl_sw": dict(mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
+    "sflibopenvgrefimpl": dict(mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
+    "libvgi": dict(mmp=f"{SFVG}/group/vgi.mmp"),
+    "svgengine": dict(mmp=f"{SVGT}/svgtopt/SVG/SVGEngine/group/SVGEngine.mmp",
+                      **{"def": f"{SVGT}/svgtopt/SVG/SVGEngine/eabi/SVGENGINE-OpenVGU.def"}),
+    "vgrenderer": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/group/VGRenderer.mmp"),
+    "swvg": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/SWVG/group/SWVG.mmp",
+                 **{"def": f"{SVGT}/svgtopt/VGRenderer/SWVG/eabi/SWVG.def"}),
 }
