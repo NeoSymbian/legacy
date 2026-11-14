@@ -198,6 +198,7 @@ COMPONENTS = {
     "sflibopenvgrefimpl": dict(mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
     "libvgi": dict(mmp=f"{SFVG}/group/vgi.mmp"),
     "svgengine": dict(mmp=f"{SVGT}/svgtopt/SVG/SVGEngine/group/SVGEngine.mmp",
+                      flags=["-D__int64=long long"],   # Gfxmath.h's RVCT/MSVC keyword
                       **{"def": f"{SVGT}/svgtopt/SVG/SVGEngine/eabi/SVGENGINE-OpenVGU.def"}),
     "vgrenderer": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/group/VGRenderer.mmp"),
     "swvg": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/SWVG/group/SWVG.mmp",
