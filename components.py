@@ -193,6 +193,7 @@ COMPONENTS = {
     "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
     "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
     "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, cxx_runtime=True,
+                      no_gcchelp=True,   # it defines operator new/delete itself
                       flags=["-fexceptions", *SYMCPP]),
     "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
     "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
