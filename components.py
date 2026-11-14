@@ -197,6 +197,11 @@ COMPONENTS = {
     "libegl_sw": dict(mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
     "sflibopenvgrefimpl": dict(mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, flags=["-fexceptions"]),
     "libvgi": dict(mmp=f"{SFVG}/group/vgi.mmp"),
+    # the image decoders' framework (the engine's <image> elements; an icon of paths never calls it)
+    "imageprocessorperf": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageProcessorPerf.mmp"),
+    "imageconversion": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageConversion.mmp"),
+    "imageconversionresolver": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageConversionResolver.mmp"),
+    "mmcommon": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommon.mmp"),
     "svgengine": dict(mmp=f"{SVGT}/svgtopt/SVG/SVGEngine/group/SVGEngine.mmp",
                       flags=["-D__int64=long long"],   # Gfxmath.h's RVCT/MSVC keyword
                       **{"def": f"{SVGT}/svgtopt/SVG/SVGEngine/eabi/SVGENGINE-OpenVGU.def"}),
