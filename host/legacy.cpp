@@ -17,6 +17,7 @@
 
 #include <e32base.h>
 #include <e32debug.h>
+#include <e32svr.h>
 #include <e32keys.h>
 #include <f32file.h>
 #include <w32std.h>
@@ -528,6 +529,10 @@ TInt Run()
 
 GLDEF_C TInt E32Main()
 	{
+	// the old-app failure trace (kernel euser us_trp.cpp, F32): leaves, error exits, failed lookups, file and loader
+	// requests of the guest's processes go to the debug log as "neotrace:" lines.
+	// shortcut: on whenever the runtime runs (bring-up); make it a setting once old apps work.
+	User::SetDebugMask(UserSvr::DebugMask(3) | 0x80000000u, 3);
 	CTrapCleanup* cleanup = CTrapCleanup::New();
 	const TInt err = cleanup ? Run() : KErrNoMemory;
 	delete cleanup;
