@@ -183,6 +183,11 @@ COMPONENTS = {
     "mmfdevsoundproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsoundproxy.mmp"),
     "mmfaudioserverproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfaudioserverproxy.mmp"),
     "mmcommonutils": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommonUtils.mmp"),
+    # the MMF message types DevSound's proxy is made of (RMMFDevSoundProxy's constructor builds a
+    # TMMFMessageDestination: a panic stub killed Frozen Bubble's mixer thread)
+    "mmfcontrollerframework": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/ControllerFramework/MmfControllerFramework.mmp"),
+    "mmfserverbaseclasses": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/server/mmfserverbaseclasses.mmp"),
     "mediaclientvideo": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientVideo.mmp"),
     # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging): the program
     # loads them at start, and calls them only for those features
