@@ -27,6 +27,7 @@
 #include <fbs.h>
 #include <AknIconUtils.h>
 #include <AknIconSrvClient.h>
+#include <AknCapServerClient.h>
 
 namespace {
 
@@ -357,6 +358,13 @@ TInt Run()
 		return Fail("connect to the window server", err);
 		}
 	RDebug::Printf("legacy: guest wserv %dx%d up, surface %dx%d", f.iW, f.iH, f.iSw, f.iSh);
+
+	// Avkon's system servers: AknCapServer, which brings up EikSrv and the skin server. A 2010 phone starts them at boot
+	// (the starter's AknCapServerStart, the same call); started by the first app instead, their windows took the focus
+	// in its start-up, and Frozen Bubble lost the foreground before its first idle callback (KERN-EXEC 3)
+	TRAPD(caps, RAknUiServer::StartAknCapserverL());
+	if (caps)
+		RDebug::Printf("legacy: AknCapServer not started (%d)", caps);
 
 	RApaLsSession ls;
 	RArray<TOldApp> apps;
