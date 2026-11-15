@@ -142,6 +142,10 @@ COMPONENTS = {
     "fontutils": dict(mmp="oss.FCL.sf.mw.uiresources/fontsupport/fontutils/FontUtils/group/FontUtils.mmp"),
     "aknpictograph": dict(mmp="oss.FCL.sf.mw.uiresources/pictographs/AknPictograph/group/AknPictograph.mmp"),
     "ptiengine": dict(mmp="oss.FCL.sf.mw.inputmethods/textinput/ptienginev2/group/ptienginev2.mmp"),
+    # its key-map data (an ECom plugin per language; English only for now): without one CPtiEngine::NewL leaves
+    # KErrCorrupt ("cannot function without keymapping data"), which killed X-plore at start-up
+    "ptikeymappings_itut_01": dict(
+        mmp="oss.FCL.sf.mw.inputmethods/textinput/ptienginev2/languages/PtiKeymappings_ITUT_01.mmp"),
     "touchfeedback": dict(mmp="oss.FCL.sf.mw.hapticsservices/tactilefeedback/tactilefeedbackclient/group/touchfeedback.mmp"),
     # the window server click plugin: Avkon's key-sound anim asks it for MTactileFeedbackServer (NULL unless loaded)
     "tactileclickplugin": dict(mmp="oss.FCL.sf.mw.hapticsservices/tactilefeedback/tactileclickplugin/group/tactileclickplugin.mmp"),
