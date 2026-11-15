@@ -186,20 +186,27 @@ void IconL(RApaLsSession& aLs, TUid aUid, RBuf8& aOut)
 	CleanupStack::PushL(mask);
 	User::LeaveIfError(AknIconUtils::SetSize(bitmap, TSize(KIconSize, KIconSize)));	// rasterizes; the mask follows
 	const TSize size = bitmap->SizeInPixels();
-	aOut.CreateL(4 + size.iWidth * size.iHeight * 4);
+	const TInt w = Min(size.iWidth, KIconSize), h = Min(size.iHeight, KIconSize);	// SetSize keeps the aspect
+	aOut.CreateL(4 + w * h * 4);
 	aOut.SetLength(4);
-	aOut[0] = size.iWidth & 0xFF; aOut[1] = size.iWidth >> 8;
-	aOut[2] = size.iHeight & 0xFF; aOut[3] = size.iHeight >> 8;
-	for (TInt y = 0; y < size.iHeight; ++y)
-		for (TInt x = 0; x < size.iWidth; ++x)
+	aOut[0] = w & 0xFF; aOut[1] = w >> 8;
+	aOut[2] = h & 0xFF; aOut[3] = h >> 8;
+	// by scan line: the icon server compresses its bitmaps in the background (AknIconSrv.rss, RLE), and
+	// CFbsBitmap::GetPixel does not read compressed bitmaps (it leaves the colour white); GetScanLine decodes them
+	TBuf8<KIconSize * 4> line;
+	TBuf8<KIconSize> alpha;
+	for (TInt y = 0; y < h; ++y)
+		{
+		bitmap->GetScanLine(line, TPoint(0, y), w, EColor16MA);		// 0xAARRGGBB, little-endian
+		if (mask)
+			mask->GetScanLine(alpha, TPoint(0, y), w, EGray256);
+		for (TInt x = 0; x < w; ++x)
 			{
-			TRgb c, m(KRgbWhite);
-			bitmap->GetPixel(c, TPoint(x, y));
-			if (mask)
-				mask->GetPixel(m, TPoint(x, y));
-			const TUint32 argb = TUint32(m.Red()) << 24 | c.Red() << 16 | c.Green() << 8 | c.Blue();
+			const TUint32 rgb = line[x * 4] | line[x * 4 + 1] << 8 | line[x * 4 + 2] << 16;
+			const TUint32 argb = TUint32(mask ? alpha[x] : 0xFF) << 24 | rgb;
 			aOut.Append(reinterpret_cast<const TUint8*>(&argb), 4);
 			}
+		}
 	CleanupStack::PopAndDestroy(3, file);
 	}
 
