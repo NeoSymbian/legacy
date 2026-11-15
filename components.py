@@ -16,6 +16,15 @@ PDATA = "oss.FCL.sf.os.persistentdata"
 TXT = "oss.FCL.sf.os.textandloc"
 CUI = "oss.FCL.sf.mw.classicui"
 APF = "oss.FCL.sf.mw.appsupport/appfw"
+G = "oss.FCL.sf.os.graphics"
+SFVG = f"{G}/openvg/openvgrefimplementation/sfopenvg"   # the software OpenVG + EGL reference implementation
+SVGT = "oss.FCL.sf.mw.svgt"
+XML = "oss.FCL.sf.os.xmlsrv"
+OPENC = "oss.FCL.sf.os.ossrv/genericopenlibs/openenvcore"
+# Open C's headers mark float functions __SOFTFP (RVCT's __softfp); ours is the soft-float ABI already
+OPENC_DEFS = ["__SOFTFP="]
+# STLport takes std::nothrow_t from symcpp.h, which RVCT's prefix header included (as scppnwdl's entry does)
+SYMCPP = ["-include", os.path.join(SRC, KCS, "symcpp", "symcpp.h")]
 # FindUtil.h is only in classicui master (BRANCH_RCL_3 dropped findutil_api): that one directory, not master's headers
 FINDUTIL_INC = ["-I", os.path.join(SRC, "oss.FCL.sf.mw.classicui@master", "classicui_plat", "findutil_api", "inc")]
 
@@ -162,14 +171,49 @@ COMPONENTS = {
     "etel3rdparty": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyutils/etel3rdpartyapi/Group/Etel3rdParty.mmp"),
     "mediaclientaudio": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudio.mmp"),
     "mediaclientvideo": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientVideo.mmp"),
-    # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging, the old C
-    # library): the program loads them at start, and calls them only for those features
+    # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging): the program
+    # loads them at start, and calls them only for those features
     "bluetooth": {"stub": 0}, "btextnotifiers": {"stub": 0x1000A5FA}, "sdpagent": {"stub": 0x10009222},
     "sdpdatabase": {"stub": 0x10009220}, "irda": {"stub": 0x10003D54}, "irobex": {"stub": 0x10201EF5},
     "cntmodel": {"stub": 0x10003A71}, "calinterimapi": {"stub": 0x102075E4}, "msgs": {"stub": 0x10004E66},
-    "estlib": {"stub": 0x10003B0B},
     # remote control (headset keys): the release's sources need the Bluetooth logger header it does not export
     "remconcoreapi": {"stub": 0x101F9067}, "remconinterfacebase": {"stub": 0x101F9067},
     "scppnwdl": dict(mmp=f"{KCS}/symcpp/scppnwdl.mmp",      # std::nothrow_t: RVCT's prefix header included this
                      flags=["-include", os.path.join(SRC, KCS, "symcpp", "symcpp.h")], no_gcchelp=True),
+    # --- SVG icons (an app's MIF icon is SVG): Avkon's icon server draws them with the SVG-T engine (mw.svgt) over the
+    # software OpenVG reference implementation (os.graphics sfopenvg); the engine parses with the XML interface and
+    # links the C libraries (the old one, estlib, and Open C under sfopenvg) ---
+    "xmlinterface": dict(mmp=f"{XML}/xml/xmlparser/group/XMLInterface.mmp"),
+    "cxmlparser": dict(mmp=f"{XML}/xml/cxmllibrary/group/cXmlParser.mmp"),
+    "estlib": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/BMMP/ESTLIB.MMP", c_sources=True, defs=OPENC_DEFS),
+    "redircli": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/RedirCli/REDIRCLI.MMP"),
+    "c32": dict(mmp="oss.FCL.sf.os.commsfw/serialserver/c32serialserver/group/C32.MMP"),
+    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
+    "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libstdcpp": dict(defs=OPENC_DEFS, mmp=f"{OSSRV}/stdcpp/group/libstdcpp.mmp", rtti=True, cxx_runtime=True,
+                      no_gcchelp=True,   # it defines operator new/delete itself
+                      flags=["-fexceptions", *SYMCPP]),
+    "rpipe": dict(mmp="oss.FCL.sf.os.kernelhwsrv/kernel/eka/euser/rpipe.mmp"),
+    "tzclient": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzserver/group/TimeZoneClient.mmp"),
+    "timezonelocalization": dict(mmp="oss.FCL.sf.mw.appsupport/tzservices/tzloc/group/TimeZoneLocalization.mmp"),
+    "libopenvg_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvg.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvg11u.def"}),
+    "libopenvgu_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/openvgu.mmp", **{"def": f"{G}/openvg/openvginterface/eabi/libopenvgu11u.def"}),
+    "libegl_sw": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/egl.mmp", **{"def": f"{G}/egl/eglinterface/eabi/libegl13U.def"}),
+    "sflibopenvgrefimpl": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/sfopenvg.mmp", rtti=True, cxx_runtime=True,
+                               flags=["-fexceptions", *SYMCPP]),
+    "libvgi": dict(defs=OPENC_DEFS, mmp=f"{SFVG}/group/vgi.mmp"),
+    # the image decoders' framework (the engine's <image> elements; an icon of paths never calls it)
+    "imageprocessorperf": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageProcessorPerf.mmp"),
+    "imageconversion": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageConversion.mmp"),
+    "imageconversionresolver": dict(mmp="oss.FCL.sf.os.mmimaging/imaging/imagingfws/group/ImageConversionResolver.mmp"),
+    "mmcommon": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommon.mmp"),
+    "svgengine": dict(mmp=f"{SVGT}/svgtopt/SVG/SVGEngine/group/SVGEngine.mmp",
+                      flags=["-D__int64=long long"],   # Gfxmath.h's RVCT/MSVC keyword
+                      c_sources=True,                  # GfxMath.c: C linkage, as its callers declare it
+                      **{"def": f"{SVGT}/svgtopt/SVG/SVGEngine/eabi/SVGENGINE-OpenVGU.def"}),
+    "vgrenderer": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/group/VGRenderer.mmp"),
+    "swvg": dict(mmp=f"{SVGT}/svgtopt/VGRenderer/SWVG/group/SWVG.mmp",
+                 **{"def": f"{SVGT}/svgtopt/VGRenderer/SWVG/eabi/SWVG.def"}),
 }
