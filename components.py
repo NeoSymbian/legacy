@@ -142,6 +142,10 @@ COMPONENTS = {
     "fontutils": dict(mmp="oss.FCL.sf.mw.uiresources/fontsupport/fontutils/FontUtils/group/FontUtils.mmp"),
     "aknpictograph": dict(mmp="oss.FCL.sf.mw.uiresources/pictographs/AknPictograph/group/AknPictograph.mmp"),
     "ptiengine": dict(mmp="oss.FCL.sf.mw.inputmethods/textinput/ptienginev2/group/ptienginev2.mmp"),
+    # its key-map data (an ECom plugin per language; English only for now): without one CPtiEngine::NewL leaves
+    # KErrCorrupt ("cannot function without keymapping data"), which killed X-plore at start-up
+    "ptikeymappings_itut_01": dict(
+        mmp="oss.FCL.sf.mw.inputmethods/textinput/ptienginev2/languages/PtiKeymappings_ITUT_01.mmp"),
     "touchfeedback": dict(mmp="oss.FCL.sf.mw.hapticsservices/tactilefeedback/tactilefeedbackclient/group/touchfeedback.mmp"),
     # the window server click plugin: Avkon's key-sound anim asks it for MTactileFeedbackServer (NULL unless loaded)
     "tactileclickplugin": dict(mmp="oss.FCL.sf.mw.hapticsservices/tactilefeedback/tactileclickplugin/group/tactileclickplugin.mmp"),
@@ -170,6 +174,20 @@ COMPONENTS = {
     "etelmm": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyserver/etelmultimode/group/etelmm.mmp"),
     "etel3rdparty": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyutils/etel3rdpartyapi/Group/Etel3rdParty.mmp"),
     "mediaclientaudio": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudio.mmp"),
+    # CMdaAudioOutputStream (Frozen Bubble imports it) and the DevSound client it opens. There is no audio server
+    # (mmfaudioserver.exe) yet: opening DevSound fails with KErrNotFound, so apps run silent.
+    "mediaclientaudiostream": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudioStream.mmp"),
+    "mediaclient": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClient.mmp"),
+    "mmfdevsound": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsound.mmp"),
+    "mmfdevsoundproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsoundproxy.mmp"),
+    "mmfaudioserverproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfaudioserverproxy.mmp"),
+    "mmcommonutils": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommonUtils.mmp"),
+    # the MMF message types DevSound's proxy is made of (RMMFDevSoundProxy's constructor builds a
+    # TMMFMessageDestination: a panic stub killed Frozen Bubble's mixer thread)
+    "mmfcontrollerframework": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/ControllerFramework/MmfControllerFramework.mmp"),
+    "mmfserverbaseclasses": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/server/mmfserverbaseclasses.mmp"),
     "mediaclientvideo": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientVideo.mmp"),
     # ... and stubs for the libraries it has none of (Bluetooth, IrDA/OBEX, contacts, calendar, messaging): the program
     # loads them at start, and calls them only for those features

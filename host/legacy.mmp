@@ -11,4 +11,4 @@ SOURCE          legacy.cpp
 OS_LAYER_SYSTEMINCLUDE
 MW_LAYER_SYSTEMINCLUDE
 
-LIBRARY         euser.lib efsrv.lib ws32.lib apgrfx.lib apparc.lib fbscli.lib aknicon.lib
+LIBRARY         euser.lib efsrv.lib ws32.lib apgrfx.lib apparc.lib fbscli.lib aknicon.lib akncapserverclient.lib

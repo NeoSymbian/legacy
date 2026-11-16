@@ -17,6 +17,7 @@
 
 #include <e32base.h>
 #include <e32debug.h>
+#include <e32svr.h>
 #include <e32keys.h>
 #include <f32file.h>
 #include <w32std.h>
@@ -26,6 +27,7 @@
 #include <fbs.h>
 #include <AknIconUtils.h>
 #include <AknIconSrvClient.h>
+#include <AknCapServerClient.h>
 
 namespace {
 
@@ -303,6 +305,8 @@ TInt Launch(RApaLsSession* aLs, const TDesC& aExe, RProcess& aApp)
 	return err;
 	}
 
+
+
 TInt Run()
 	{
 	// a program on the command line (neoui's debug "grid") runs at once; else the Old apps grid
@@ -330,32 +334,56 @@ TInt Run()
 	f.iOffset = KGuestOffset;
 	f.Compute();
 
+	// The guest desktop (its screen chunk, window server and Avkon's system servers) outlives LEGACY, as a phone's
+	// does: a later LEGACY reuses it. Taken down, the system-critical AknCapServer panicked (CONE 9) and faulted the
+	// kernel; killed first, it could not start again (KErrAlreadyExists: its definitions outlive the process).
 	RChunk guest;
 	const TInt size = f.iOffset + f.iStride * f.iH;
-	if ((err = guest.CreateGlobal(KLegacyChunk, size, size)) != KErrNone)
+	err = guest.CreateGlobal(KLegacyChunk, size, size);
+	const TBool reuse = err == KErrAlreadyExists;
+	if (reuse)
+		err = guest.OpenGlobal(KLegacyChunk, EFalse);
+	if (err != KErrNone)
 		return Fail("guest screen chunk", err);
-	Mem::FillZ(guest.Base(), size);
-	const TGuestHeader header = { KGuestMagic, f.iW, f.iH, f.iStride, f.iOffset };
-	Mem::Copy(guest.Base(), &header, sizeof(header));
+	if (!reuse)
+		{
+		Mem::FillZ(guest.Base(), size);
+		const TGuestHeader header = { KGuestMagic, f.iW, f.iH, f.iStride, f.iOffset };
+		Mem::Copy(guest.Base(), &header, sizeof(header));
+		}
 	Mem::FillZ(surface.Base(), f.iSw * f.iSh * 4);
 
 	RProcess wserv;
-	if ((err = wserv.Create(KGuestWserv, KNoShell)) != KErrNone)
-		return Fail("start the window server", err);
-	// wait for the window server's rendezvous (WSTOP.CPP, once it serves): connecting in a retry loop while it starts
-	// left a half-made session in ws32/fbscli that the next try faulted in (KERN-EXEC 3)
-	TRequestStatus ready;
-	wserv.Rendezvous(ready);
-	wserv.Resume();
-	User::WaitForRequest(ready);
+	TRequestStatus ready(KErrNone);
+	if (!reuse)
+		{
+		if ((err = wserv.Create(KGuestWserv, KNoShell)) != KErrNone)
+			return Fail("start the window server", err);
+		// wait for the window server's rendezvous (WSTOP.CPP, once it serves): connecting in a retry loop while it
+		// starts left a half-made session in ws32/fbscli that the next try faulted in (KERN-EXEC 3)
+		wserv.Rendezvous(ready);
+		wserv.Resume();
+		User::WaitForRequest(ready);
+		}
 	RWsSession ws;
 	err = ready.Int() != KErrNone ? ready.Int() : ws.Connect();
 	if (err)
 		{
-		wserv.Kill(0);
+		if (wserv.Handle())
+			wserv.Kill(0);
 		return Fail("connect to the window server", err);
 		}
-	RDebug::Printf("legacy: guest wserv %dx%d up, surface %dx%d", f.iW, f.iH, f.iSw, f.iSh);
+	RDebug::Printf("legacy: guest wserv %dx%d %s, surface %dx%d", f.iW, f.iH, reuse ? "reused" : "up", f.iSw, f.iSh);
+
+	// Avkon's system servers: AknCapServer, which brings up EikSrv and the skin server. A 2010 phone starts them at boot
+	// (the starter's AknCapServerStart, the same call); started by the first app instead, their windows took the focus
+	// in its start-up, and Frozen Bubble lost the foreground before its first idle callback (KERN-EXEC 3)
+	if (!reuse)
+		{
+		TRAPD(caps, RAknUiServer::StartAknCapserverL());
+		if (caps)
+			RDebug::Printf("legacy: AknCapServer not started (%d)", caps);
+		}
 
 	RApaLsSession ls;
 	RArray<TOldApp> apps;
@@ -366,8 +394,7 @@ TInt Run()
 		if ((err = Launch(NULL, program, app)) != KErrNone)
 			{
 			RDebug::Printf("legacy: cannot start the program (%d)", err);
-			wserv.Kill(0);
-			return err;
+			return err;		// the guest desktop stays up for the next LEGACY
 			}
 		running = ETrue;
 		ui.Nav(KNavBack | KNavOptions);
@@ -516,8 +543,7 @@ TInt Run()
 	apps.Close();
 	ls.Close();
 	ws.Close();
-	wserv.Kill(0);
-	wserv.Close();
+	wserv.Close();		// the guest window server keeps running (above)
 	guest.Close();
 	surface.Close();
 	ui.Close();		// an outstanding NEXT_EVENT ends with the process, as for neoui's own apps
@@ -528,6 +554,10 @@ TInt Run()
 
 GLDEF_C TInt E32Main()
 	{
+	// the old-app failure trace (kernel euser us_trp.cpp, F32): leaves, error exits, failed lookups, file and loader
+	// requests of the guest's processes go to the debug log as "neotrace:" lines.
+	// shortcut: on whenever the runtime runs (bring-up); make it a setting once old apps work.
+	User::SetDebugMask(UserSvr::DebugMask(3) | 0x80000000u, 3);
 	CTrapCleanup* cleanup = CTrapCleanup::New();
 	const TInt err = cleanup ? Run() : KErrNoMemory;
 	delete cleanup;
