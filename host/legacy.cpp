@@ -305,6 +305,35 @@ TInt Launch(RApaLsSession* aLs, const TDesC& aExe, RProcess& aApp)
 	return err;
 	}
 
+
+// Ends the guest's GUI servers before their window server. AknCapServer marks itself system-critical, and with the
+// window server gone first it panicked (CONE 9), which faults the kernel: the phone reset when Old apps was closed
+// from Open apps. A kill is not a fault, and the next LEGACY starts them again (RAknUiServer::StartAknCapserverL).
+void EndGuestServers()
+	{
+	_LIT(KAknCapServer, "akncapserver*");
+	_LIT(KEikSrv, "eiksrvs*");
+	_LIT(KSkinSrv, "aknskinsrv*");
+	const TDesC* const names[] = { &KAknCapServer, &KEikSrv, &KSkinSrv };
+	for (TUint i = 0; i < sizeof(names) / sizeof(names[0]); ++i)
+		{
+		TFindProcess find(*names[i]);
+		TFullName name;
+		while (find.Next(name) == KErrNone)
+			{
+			RProcess p;
+			if (p.Open(find) != KErrNone)
+				continue;
+			if (p.ExitType() == EExitPending)
+				{
+				RDebug::Print(_L("legacy: ending %S"), &name);
+				p.Kill(0);
+				}
+			p.Close();
+			}
+		}
+	}
+
 TInt Run()
 	{
 	// a program on the command line (neoui's debug "grid") runs at once; else the Old apps grid
@@ -524,6 +553,7 @@ TInt Run()
 		}
 	apps.Close();
 	ls.Close();
+	EndGuestServers();
 	ws.Close();
 	wserv.Kill(0);
 	wserv.Close();
