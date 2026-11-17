@@ -52,6 +52,7 @@ public:
 	TInt Touch(TInt aId, TInt aPhase, TInt aX, TInt aY);
 	void Draw(TUint32* aSurface);
 	TBool ReleaseAll();		// every held key up, every contact forgotten; ETrue if the guest had a finger down
+	void Pulse(TInt aScan);	// a press and release (a hardware or system-keyboard key), counted with the pad's
 	void Sweep();			// a key-up for every pad key: a crashed LEGACY can have left one held in the guest
 
 private:

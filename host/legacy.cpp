@@ -136,16 +136,6 @@ TInt ScanCode(TUint aCode)
 	return 0;
 	}
 
-void Key(RWsSession& aWs, TInt aScan)
-	{
-	TRawEvent ev;
-	ev.Set(TRawEvent::EKeyDown, aScan);
-	aWs.SimulateRawEvent(ev);
-	ev.Set(TRawEvent::EKeyUp, aScan);
-	aWs.SimulateRawEvent(ev);
-	aWs.Flush();
-	}
-
 // a failed start-up step, in the log (LEGACY's exit reason alone does not say which)
 TInt Fail(const char* aStep, TInt aErr)
 	{
@@ -437,7 +427,10 @@ public:
 	void Toast(const TOldApp& aApp)
 		{
 		TBuf8<80> text;
-		text.Copy(aApp.iCaption.Left(30));
+		TInt cut = Min(aApp.iCaption.Length(), 30);
+		while (cut < aApp.iCaption.Length() && cut > 0 && (aApp.iCaption[cut] & 0xC0) == 0x80)
+			--cut;		// at a whole UTF-8 character
+		text.Copy(aApp.iCaption.Left(cut));
 		text.Append(_L8(" opened with "));
 		text.Append(iMode == EPadGame ? _L8("Gamepad") : iMode == EPadNumber ? _L8("Number") : _L8("Navigator"));
 		text.Append(_L8(" \xC2\xB7 tap "));		// a middle dot
@@ -735,10 +728,10 @@ TInt Run()
 			if (view.iMode == EPadAbc)
 				view.Type(b);		// the system keyboard's characters, any script
 			else if (const TInt scan = ScanCode(b))
-				Key(ws, scan);
+				view.iPad.Pulse(scan);		// through the pad's counts: a key the pad holds stays held
 			}
 		else if (kind == KOptions && running)
-			Key(ws, EStdKeyDevice0);		// the left softkey (Options)
+			view.iPad.Pulse(EStdKeyDevice0);		// the left softkey (Options)
 		else if (kind == KKeyboardEvent && running && view.iMode == EPadAbc)
 			{
 			if (a == 0)
@@ -751,7 +744,13 @@ TInt Run()
 			}
 		else if (kind == KSettings)
 			{
+			const TInt epoch = view.iEpoch;
 			view.ReadSettings();
+			if (view.iEpoch != epoch)
+				{
+				view.iA = view.iB = 0;		// Reset remembered pads: the app's own A and B go too
+				view.ReadSettings();
+				}
 			if (running)
 				{
 				view.ReleaseInput();
@@ -812,6 +811,7 @@ TInt Run()
 	timer.Close();
 	if (running)
 		{
+		view.Close();
 		if (app.ExitType() == EExitPending)
 			app.Kill(0);
 		app.Close();

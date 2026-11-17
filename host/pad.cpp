@@ -350,7 +350,7 @@ TInt TPad::Touch(TInt aId, TInt aPhase, TInt aX, TInt aY)
 		}
 	// up: held keys go up wherever the finger is; one-shot keys and the pad's own buttons act on a lift inside
 	TInt act = EPadRedraw;
-	if (c->iInside)
+	if (it.iR.Has(aX, aY, Dp(8)))
 		{
 		switch (it.iKind)
 			{
@@ -393,6 +393,12 @@ TBool TPad::ReleaseAll()
 			Raw(TRawEvent::EKeyUp, s);
 			}
 	return guest;
+	}
+
+void TPad::Pulse(TInt aScan)
+	{
+	Press(aScan);
+	Release(aScan);
 	}
 
 void TPad::Sweep()
