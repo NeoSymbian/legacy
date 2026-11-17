@@ -45,7 +45,7 @@ public:
 	void Init(RWsSession* aWs, TInt aW, TInt aH, TInt aDp256);
 	void Resize(TInt aW, TInt aH) { iW = aW; iH = aH; }		// lay out again after it
 	// lays the pad out for aMode in a surface aW x aH whose bottom aKeyboardH pixels are the system keyboard's
-	// aConsole: the Gamepad's landscape console (the phone sideways, its top to the left): the pad and the guest are
+	// aConsole: the Gamepad's landscape console (the phone sideways, its top to the right): the pad and the guest are
 	// laid out on a landscape canvas, drawn rotated into the portrait surface
 	void Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings, TBool aConsole = EFalse);
 	TBool Console() const { return iConsole; }

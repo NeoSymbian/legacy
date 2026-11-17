@@ -117,7 +117,7 @@ void Blit(const TFit& aF, const TUint8* aGuest, TUint32* aSurface)
 		}
 	}
 
-// The console: the guest turned a quarter (the phone's top to the left), aF in canvas coordinates (TPad::ToCanvas)
+// The console: the guest turned a quarter (the phone's top to the right), aF in canvas coordinates (TPad::ToCanvas)
 void BlitTurned(const TFit& aF, const TUint8* aGuest, TUint32* aSurface)
 	{
 	for (TInt u = 0; u < aF.iDw; ++u)
@@ -368,7 +368,8 @@ public:
 	TInt iGuestX, iGuestY;
 	TBool iGuestDown;
 	TInt iTick;				// the key vibration's amplitude (0: off)
-	TBool iConsole, iConsoleFirst;	// the Gamepad's landscape console now; a game's first open is in it
+	TBool iConsole, iConsoleFirst;
+	TInt iCleared;			// the surface rows Layout clears (the tallest area so far)	// the Gamepad's landscape console now; a game's first open is in it
 
 	void ReadSettings()
 		{
@@ -514,7 +515,8 @@ public:
 		{
 		iPad.Layout(iMode, iMode == EPadAbc ? iKeyboardH : 0, iSet, iConsole);
 		iFit.Compute(iPad.Guest(), iMode != EPadHidden);
-		Mem::FillZ(iSurface, iFit.iSw * iFit.iSh * 4);
+		iCleared = Max(iCleared, iFit.iSh);		// the console's pixels below a shorter portrait area too
+		Mem::FillZ(iSurface, iFit.iSw * iCleared * 4);
 		Frame();
 		iPad.Draw(iSurface);
 		iUi->Damage(0, 0, iFit.iSw, iFit.iSh);
@@ -592,7 +594,7 @@ public:
 		else if (act & EPadRedraw)
 			{
 			iPad.Draw(iSurface);
-			const TPadRect& r = iPad.Rect();
+			const TPadRect r = iPad.ToSurface(iPad.Rect());		// the console's canvas is turned
 			iUi->Damage(r.iX, r.iY, r.iW, r.iH);
 			}
 		if (act & EPadRotate)
@@ -704,6 +706,7 @@ TInt Run()
 	view.iA = view.iB = 0;
 	view.iGuestDown = EFalse;
 	view.iConsole = EFalse;
+	view.iCleared = 0;
 	view.ReadSettings();
 	ui.SettingWatch(_L8("legacy.pad."));
 	if (reuse)
