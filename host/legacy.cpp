@@ -37,10 +37,11 @@ namespace {
 // --- the NeoUi protocol (neoui/crates/neoui-proto/src/ipc.rs) ---
 _LIT(KNeoUi, "NeoUi");
 const TInt KGeometry = 1, KSurface = 2, KDamage = 3, KNextEvent = 4, KKeyboard = 5, KNav = 6, KSettingGet = 8,
-	KSettingSet = 9, KSettingWatch = 10, KEntry = 13, KFront = 14, KNote = 17;
+	KSettingSet = 9, KSettingWatch = 10, KEntry = 13, KFront = 14, KPage = 15, KNote = 17, KHaptic = 25;
 const TInt KNavBack = 1, KNavOptions = 2, KKeyboardText = 1;
 const TUint KTouch = 1, KKey = 2, KQuit = 3, KBack = 4, KOptions = 5, KVisible = 6, KSettings = 7, KKeyboardEvent = 9,
-	KEntryEvent = 12;
+	KEntryEvent = 12, KArea = 18, KInputReset = 21;
+const TUint8 KPageCanBack = 1, KPageFull = 4;		// a PAGE's flags (neoui-proto page.rs)
 const TUint8 KValueBool = 1, KValueInt = 2, KValueBytes = 4;	// a setting's tag (neoui-proto settings/value.rs)
 const TInt KTitleMax = 48;			// a caption's UTF-8 bytes (neoui TITLE_MAX)
 const TInt KIconSize = 128;			// the icons' pixels a side (neoui ENTRY_ICON_MAX; the grid scales them)
@@ -63,6 +64,8 @@ public:
 		{ return SendReceive(KSettingSet, TIpcArgs(&aKey, &aValue)); }
 	TInt SettingWatch(const TDesC8& aPrefix) { return SendReceive(KSettingWatch, TIpcArgs(&aPrefix)); }
 	TInt Note(const TDesC8& aNote) { return SendReceive(KNote, TIpcArgs(&aNote)); }
+	TInt Page(const TDesC8& aPage) { return SendReceive(KPage, TIpcArgs(&aPage)); }	// the area's height
+	TInt Haptic(TInt aMs, TInt aAmp) { return SendReceive(KHaptic, TIpcArgs(aMs, aAmp)); }
 	};
 
 TUint Le32(const TDesC8& aB, TInt aI)
@@ -350,6 +353,7 @@ public:
 	TUint8 iA, iB;				// the app's own A and B (0: Settings')
 	TInt iGuestX, iGuestY;
 	TBool iGuestDown;
+	TInt iTick;				// the key vibration's amplitude (0: off)
 
 	void ReadSettings()
 		{
@@ -361,6 +365,29 @@ public:
 		iSet.iLefty = SettingInt(*iUi, _L8("legacy.pad.lefty"), 0) == 1;
 		iDefaultPad = SettingInt(*iUi, _L8("legacy.pad.default"), 0);
 		iEpoch = SettingInt(*iUi, _L8("legacy.pad.epoch"), 0);
+		const TInt strength = SettingInt(*iUi, _L8("legacy.pad.strength"), 1);
+		iTick = SettingInt(*iUi, _L8("legacy.pad.vibrate"), 1) ? (strength == 0 ? 40 : strength == 2 ? 110 : 70) : 0;
+		}
+
+	// the app's page: its name, Back stays in it (closes it); the shell drops its header, the pad has the softkeys
+	void Declare(const TOldApp& aApp)
+		{
+		TBuf8<6 + KTitleMax> page;
+		page.Append(KPageCanBack);
+		page.AppendFill(0, 4);
+		page.Append(aApp.iCaption.Length());
+		page.Append(aApp.iCaption);
+		const TInt h = iUi->Page(page);
+		if (h > 0)
+			Resize(h);
+		}
+
+	// the area is now aH tall (a page declared, the navigation mode changed)
+	void Resize(TInt aH)
+		{
+		ReleaseInput();
+		iFit.iSh = aH;
+		iPad.Resize(iFit.iSw, aH);
 		}
 
 	void Key(TBuf8<32>& aKey) const
@@ -393,6 +420,7 @@ public:
 	// told in a toast and saved at once so the toast shows once)
 	void Open(const TOldApp& aApp)
 		{
+		Declare(aApp);
 		iUid = aApp.iUid.iUid;
 		iA = iB = 0;
 		TBuf8<32> key;
@@ -507,6 +535,8 @@ public:
 		const TInt act = iPad.Touch(id, phase, aX, aY);
 		if (act & EPadGuest)
 			Guest(phase, aX, aY);
+		if (act & EPadTick && iTick)
+			iUi->Haptic(12, iTick);
 		if (act & EPadModeChange)
 			SetMode(iPad.NewMode());
 		else if (act & EPadRestore)
@@ -741,6 +771,16 @@ TInt Run()
 				view.iKeyboardH = a;
 				view.Layout();
 				}
+			}
+		else if (kind == KArea && running)
+			{
+			view.Resize(a);
+			view.Layout();
+			}
+		else if (kind == KInputReset && running)
+			{
+			view.ReleaseInput();		// the shell took the fingers away (the screen went off, a call)
+			view.Layout();
 			}
 		else if (kind == KSettings)
 			{

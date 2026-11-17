@@ -43,6 +43,7 @@ class TPad
 	{
 public:
 	void Init(RWsSession* aWs, TInt aW, TInt aH, TInt aDp256);
+	void Resize(TInt aW, TInt aH) { iW = aW; iH = aH; }		// lay out again after it
 	// lays the pad out for aMode in a surface aW x aH whose bottom aKeyboardH pixels are the system keyboard's
 	void Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings);
 	TPadMode Mode() const { return iMode; }
