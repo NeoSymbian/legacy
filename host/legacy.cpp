@@ -13,6 +13,8 @@
 //   4. on a tap (the Entry event) starts that app through AppArc and brings its surface to the front (FRONT): the
 //      guest screen, scaled to fit, with neoui's taps and keys turned into raw events for the guest window server
 //      (RWsSession::SimulateRawEvent). Back or the app's end closes the app and gives the grid back.
+//   5. under the guest, an on-screen key pad (pad.cpp: Navigator, Gamepad, Number, Abc, Hidden), remembered per app as
+//      the setting legacy.<uid>.pad, its options from Settings → Old apps (legacy.pad.*).
 // With a program on the command line ("grid", the MiniGUI test app) it runs that one at once, as before AppArc.
 
 #include <e32base.h>
@@ -28,14 +30,18 @@
 #include <AknIconUtils.h>
 #include <AknIconSrvClient.h>
 #include <AknCapServerClient.h>
+#include "pad.h"
 
 namespace {
 
 // --- the NeoUi protocol (neoui/crates/neoui-proto/src/ipc.rs) ---
 _LIT(KNeoUi, "NeoUi");
-const TInt KGeometry = 1, KSurface = 2, KDamage = 3, KNextEvent = 4, KNav = 6, KEntry = 13, KFront = 14;
-const TInt KNavBack = 1, KNavOptions = 2;
-const TUint KTouch = 1, KKey = 2, KQuit = 3, KBack = 4, KOptions = 5, KVisible = 6, KEntryEvent = 12;
+const TInt KGeometry = 1, KSurface = 2, KDamage = 3, KNextEvent = 4, KKeyboard = 5, KNav = 6, KSettingGet = 8,
+	KSettingSet = 9, KSettingWatch = 10, KEntry = 13, KFront = 14, KNote = 17;
+const TInt KNavBack = 1, KNavOptions = 2, KKeyboardText = 1;
+const TUint KTouch = 1, KKey = 2, KQuit = 3, KBack = 4, KOptions = 5, KVisible = 6, KSettings = 7, KKeyboardEvent = 9,
+	KEntryEvent = 12;
+const TUint8 KValueBool = 1, KValueInt = 2, KValueBytes = 4;	// a setting's tag (neoui-proto settings/value.rs)
 const TInt KTitleMax = 48;			// a caption's UTF-8 bytes (neoui TITLE_MAX)
 const TInt KIconSize = 128;			// the icons' pixels a side (neoui ENTRY_ICON_MAX; the grid scales them)
 
@@ -51,6 +57,12 @@ public:
 	TInt Entry(TUint aId, const TDesC8& aCaption, const TDesC8& aIcon)
 		{ return SendReceive(KEntry, TIpcArgs(aId, &aCaption, &aIcon)); }
 	TInt Front(TBool aFront) { return SendReceive(KFront, TIpcArgs(aFront ? 1 : 0)); }
+	TInt Keyboard(TInt aMode) { return SendReceive(KKeyboard, TIpcArgs(aMode)); }	// its height
+	TInt SettingGet(const TDesC8& aKey, TDes8& aValue) { return SendReceive(KSettingGet, TIpcArgs(&aKey, &aValue)); }
+	TInt SettingSet(const TDesC8& aKey, const TDesC8& aValue)
+		{ return SendReceive(KSettingSet, TIpcArgs(&aKey, &aValue)); }
+	TInt SettingWatch(const TDesC8& aPrefix) { return SendReceive(KSettingWatch, TIpcArgs(&aPrefix)); }
+	TInt Note(const TDesC8& aNote) { return SendReceive(KNote, TIpcArgs(&aNote)); }
 	};
 
 TUint Le32(const TDesC8& aB, TInt aI)
@@ -67,28 +79,27 @@ _LIT(KGuestWserv, "EWSRV.EXE");
 _LIT(KNoShell, "-NoShell");
 const TInt KFrameUs = 100000;	// shortcut: the whole frame copied 10 times a second; real damage via SubmitUpdate later
 
-// The guest screen (HAL geometry) fitted into the surface: centred, aspect kept.
+// The guest screen (HAL geometry) fitted into a box of the surface (above the key pad): aspect kept, centred across,
+// at the box's top (or centred, aTop false).
 struct TFit
 	{
 	TInt iW, iH, iStride, iOffset;	// guest: pixels, bytes per line, bytes to the first pixel
 	TInt iSw, iSh;					// surface
 	TInt iDx, iDy, iDw, iDh;		// where the guest lands in the surface
-	void Compute()
+	void Compute(const TPadRect& aBox, TBool aTop)
 		{
-		if (iSw * iH <= iSh * iW)
-			{ iDw = iSw; iDh = iH * iSw / iW; }
+		if (aBox.iW * iH <= aBox.iH * iW)
+			{ iDw = aBox.iW; iDh = iH * aBox.iW / iW; }
 		else
-			{ iDh = iSh; iDw = iW * iSh / iH; }
-		iDx = (iSw - iDw) / 2;
-		iDy = (iSh - iDh) / 2;
+			{ iDh = aBox.iH; iDw = iW * aBox.iH / iH; }
+		iDx = aBox.iX + (aBox.iW - iDw) / 2;
+		iDy = aBox.iY + (aTop ? 0 : (aBox.iH - iDh) / 2);
 		}
-	TBool ToGuest(TInt aX, TInt aY, TInt& aGx, TInt& aGy) const
+	// a surface point in guest pixels, clamped to the guest screen (a finger that slid off it still lifts there)
+	void ToGuest(TInt aX, TInt aY, TInt& aGx, TInt& aGy) const
 		{
-		if (aX < iDx || aY < iDy || aX >= iDx + iDw || aY >= iDy + iDh)
-			return EFalse;
-		aGx = (aX - iDx) * iW / iDw;
-		aGy = (aY - iDy) * iH / iDh;
-		return ETrue;
+		aGx = Max(0, Min(iW - 1, (aX - iDx) * iW / Max(1, iDw)));
+		aGy = Max(0, Min(iH - 1, (aY - iDy) * iH / Max(1, iDh)));
 		}
 	};
 
@@ -216,6 +227,8 @@ struct TOldApp
 	{
 	TUid iUid;
 	TFileName iExe;
+	TBuf8<KTitleMax> iCaption;
+	TBool iGame;		// AppArc's group "Games": a first open gets the Gamepad
 	};
 
 // Every app AppArc knows (once its first scan is done), except hidden ones, to neoui as launcher entries
@@ -246,7 +259,8 @@ void PublishL(RNeoUi& aUi, RApaLsSession& aLs, RArray<TOldApp>& aApps, TBool aIc
 	while ((err = aLs.GetNextApp(info)) == KErrNone)
 		{
 		TApaAppCapabilityBuf cap;
-		if (aLs.GetAppCapability(cap, info.iUid) == KErrNone && cap().iAppIsHidden)
+		const TBool capOk = aLs.GetAppCapability(cap, info.iUid) == KErrNone;
+		if (capOk && cap().iAppIsHidden)
 			continue;
 		RBuf8 icon;
 		TInt iconErr = KErrNone;
@@ -266,7 +280,11 @@ void PublishL(RNeoUi& aUi, RApaLsSession& aLs, RArray<TOldApp>& aApps, TBool aIc
 		const TInt sent = aUi.Entry(info.iUid.iUid, caption, icon);
 		RDebug::Printf("legacy: app %08x '%S': icon %d bytes, entry %d", info.iUid.iUid, &caption, icon.Length(), sent);
 		icon.Close();
-		TOldApp app = { info.iUid, info.iFullName };
+		TOldApp app;
+		app.iUid = info.iUid;
+		app.iExe = info.iFullName;
+		app.iCaption = caption;
+		app.iGame = capOk && cap().iGroupName.CompareF(_L("Games")) == 0;
 		aApps.AppendL(app);
 		}
 	if (err != RApaLsSession::ENoMoreAppsInList)
@@ -305,7 +323,233 @@ TInt Launch(RApaLsSession* aLs, const TDesC& aExe, RProcess& aApp)
 	return err;
 	}
 
+// --- the key pads: settings, the per-app profile, layout ---
 
+// a setting as an int (a bool is 0/1); aDefault when it has no value or another type
+TInt SettingInt(RNeoUi& aUi, const TDesC8& aKey, TInt aDefault)
+	{
+	TBuf8<8> v;
+	if (aUi.SettingGet(aKey, v) < 0 || v.Length() < 2)
+		return aDefault;
+	if (v[0] == KValueBool && v.Length() == 2)
+		return v[1];
+	if (v[0] == KValueInt && v.Length() == 5)
+		return TInt(Le32(v, 1));
+	return aDefault;
+	}
+
+// the per-app profile, legacy.<uid8>.pad: version 1, mode, last visible pad, orientation, A and B (0 = Settings'),
+// the reset epoch it was saved under (u32 LE)
+const TInt KProfileLen = 10;
+const TUint32 KFrozenBubble = 0xA0002AAA;	// first opens in Gamepad (the UID table)
+
+class TView
+	{
+public:
+	RNeoUi* iUi;
+	RWsSession* iWs;
+	TUint32* iSurface;
+	const TUint8* iGuestPix;
+	TFit iFit;
+	TPad iPad;
+	TPadSettings iSet;
+	TInt iDefaultPad, iEpoch;
+	TInt iKeyboardH;
+	TPadMode iMode, iLast;		// the pad now; the last of Nav, Game and Number (Hidden's and Abc's way back)
+	TUint32 iUid;
+	TUint8 iA, iB;				// the app's own A and B (0: Settings')
+	TInt iGuestX, iGuestY;
+	TBool iGuestDown;
+
+	void ReadSettings()
+		{
+		iSet.iNumberDirs = SettingInt(*iUi, _L8("legacy.pad.dirs"), 0) == 1;
+		const TInt a = iA ? iA - 1 : SettingInt(*iUi, _L8("legacy.pad.a"), 0);
+		const TInt b = iB ? iB - 1 : SettingInt(*iUi, _L8("legacy.pad.b"), 0);
+		iSet.iA = a == 1 ? '5' : EStdKeyDevice3;
+		iSet.iB = b == 1 ? '0' : b == 2 ? EStdKeyHash : EStdKeyDevice1;
+		iSet.iLefty = SettingInt(*iUi, _L8("legacy.pad.lefty"), 0) == 1;
+		iDefaultPad = SettingInt(*iUi, _L8("legacy.pad.default"), 0);
+		iEpoch = SettingInt(*iUi, _L8("legacy.pad.epoch"), 0);
+		}
+
+	void Key(TBuf8<32>& aKey) const
+		{
+		aKey.Format(_L8("legacy.%08x.pad"), iUid);
+		}
+
+	void Save()
+		{
+		if (!iUid)
+			return;
+		TBuf8<32> key;
+		Key(key);
+		TBuf8<1 + KProfileLen> v;
+		v.Append(KValueBytes);
+		v.Append(1);
+		v.Append(iMode);
+		v.Append(iLast);
+		v.Append(0);		// orientation: portrait (the console is stage 3)
+		v.Append(iA);
+		v.Append(iB);
+		for (TInt i = 0; i < 4; ++i)
+			v.Append(TUint8(TUint(iEpoch) >> (8 * i)));
+		const TInt err = iUi->SettingSet(key, v);
+		if (err)
+			RDebug::Printf("legacy: saving the pad of %08x failed (%d)", iUid, err);
+		}
+
+	// the app's pad: its profile; else Settings' default, the UID table, AppArc's Games group, Navigator (a first open,
+	// told in a toast and saved at once so the toast shows once)
+	void Open(const TOldApp& aApp)
+		{
+		iUid = aApp.iUid.iUid;
+		iA = iB = 0;
+		TBuf8<32> key;
+		Key(key);
+		TBuf8<1 + KProfileLen + 4> v;
+		TBool known = iUi->SettingGet(key, v) >= 0 && v.Length() == 1 + KProfileLen && v[0] == KValueBytes
+			&& v[1] >= 1 && TInt(Le32(v, 7)) == iEpoch;
+		TPadMode mode = EPadNav;
+		if (known)
+			{
+			mode = v[2] < EPadModes ? TPadMode(v[2]) : EPadNav;
+			iLast = v[3] <= EPadNumber ? TPadMode(v[3]) : EPadNav;
+			iA = v[5] <= 2 ? v[5] : 0;
+			iB = v[6] <= 3 ? v[6] : 0;
+			}
+		else
+			{
+			mode = iDefaultPad == 1 ? EPadNav : iDefaultPad == 2 ? EPadGame : iDefaultPad == 3 ? EPadNumber
+				: iUid == KFrozenBubble || aApp.iGame ? EPadGame : EPadNav;
+			iLast = mode;
+			}
+		ReadSettings();
+		iMode = EPadModes;		// SetMode lays out even when the mode is the default
+		SetMode(mode, EFalse);
+		if (!known)
+			{
+			Save();
+			Toast(aApp);
+			}
+		}
+
+	void Toast(const TOldApp& aApp)
+		{
+		TBuf8<80> text;
+		text.Copy(aApp.iCaption.Left(30));
+		text.Append(_L8(" opened with "));
+		text.Append(iMode == EPadGame ? _L8("Gamepad") : iMode == EPadNumber ? _L8("Number") : _L8("Navigator"));
+		text.Append(_L8(" \xC2\xB7 tap "));		// a middle dot
+		text.Append(iMode == EPadNav ? _L8("Game") : _L8("Nav"));
+		text.Append(_L8(" to change"));
+		TBuf8<82> note;
+		note.Append(text.Length());
+		note.Append(text);
+		note.Append(0);		// no action
+		iUi->Note(note);
+		}
+
+	void SetMode(TPadMode aMode, TBool aSave = ETrue)
+		{
+		if (aMode == iMode)
+			return;
+		ReleaseInput();
+		if (iMode == EPadAbc)
+			{
+			iUi->Keyboard(0);
+			iKeyboardH = 0;
+			}
+		if (aMode == EPadAbc)
+			iKeyboardH = Max(0, iUi->Keyboard(KKeyboardText));
+		if (aMode <= EPadNumber)
+			iLast = aMode;
+		iMode = aMode;
+		if (aSave)
+			Save();
+		Layout();
+		}
+
+	void Layout()
+		{
+		iPad.Layout(iMode, iMode == EPadAbc ? iKeyboardH : 0, iSet);
+		iFit.Compute(iPad.Guest(), iMode != EPadHidden);
+		Mem::FillZ(iSurface, iFit.iSw * iFit.iSh * 4);
+		Blit(iFit, iGuestPix, iSurface);
+		iPad.Draw(iSurface);
+		iUi->Damage(0, 0, iFit.iSw, iFit.iSh);
+		}
+
+	// a tick: the guest's new frame (Hidden's button stays on top of it)
+	void Frame()
+		{
+		Blit(iFit, iGuestPix, iSurface);
+		if (iMode == EPadHidden)
+			iPad.Draw(iSurface);
+		iUi->Damage(iFit.iDx, iFit.iDy, iFit.iDw, iFit.iDh);
+		}
+
+	void Guest(TInt aPhase, TInt aX, TInt aY)
+		{
+		iFit.ToGuest(aX, aY, iGuestX, iGuestY);
+		TRawEvent raw;
+		raw.Set(aPhase == 0 ? TRawEvent::EButton1Down : aPhase == 2 ? TRawEvent::EButton1Up : TRawEvent::EPointerMove,
+			iGuestX, iGuestY);
+		iWs->SimulateRawEvent(raw);
+		iWs->Flush();
+		iGuestDown = aPhase != 2;
+		}
+
+	// everything held goes up: the app went to the background, closed, or the pad changed under the fingers
+	void ReleaseInput()
+		{
+		iPad.ReleaseAll();
+		if (iGuestDown)
+			Guest(2, iFit.iDx + iGuestX * iFit.iDw / iFit.iW, iFit.iDy + iGuestY * iFit.iDh / iFit.iH);
+		}
+
+	void Touch(TUint aA, TInt aX, TInt aY)
+		{
+		const TInt phase = aA & 0xFF, id = aA >> 8 & 0xFF;
+		const TInt act = iPad.Touch(id, phase, aX, aY);
+		if (act & EPadGuest)
+			Guest(phase, aX, aY);
+		if (act & EPadModeChange)
+			SetMode(iPad.NewMode());
+		else if (act & EPadRestore)
+			SetMode(iLast);
+		else if (act & EPadRedraw)
+			{
+			iPad.Draw(iSurface);
+			const TPadRect& r = iPad.Rect();
+			iUi->Damage(r.iX, r.iY, r.iW, r.iH);
+			}
+		if (act & EPadRotate)
+			RDebug::Printf("legacy: the console comes in stage 3");
+		}
+
+	// Abc: a typed character into the old app's focused editor, as a key event with its code (no FEP needed)
+	void Type(TUint aCode)
+		{
+		TKeyEvent k;
+		k.iCode = aCode;
+		k.iScanCode = aCode == 8 ? EStdKeyBackspace : aCode == 13 ? EStdKeyEnter : ScanCode(aCode);
+		k.iModifiers = 0;
+		k.iRepeats = 0;
+		iWs->SimulateKeyEvent(k);
+		iWs->Flush();
+		}
+
+	// the app closed or went away: nothing held, no keyboard
+	void Close()
+		{
+		ReleaseInput();
+		if (iMode == EPadAbc)
+			iUi->Keyboard(0);
+		iKeyboardH = 0;
+		iUid = 0;
+		}
+	};
 
 TInt Run()
 	{
@@ -332,7 +576,8 @@ TInt Run()
 	f.iH = KGuestH;
 	f.iStride = KGuestW * 4;	// EColor16MA, as the panel's 32-bpp mode
 	f.iOffset = KGuestOffset;
-	f.Compute();
+	const TPadRect whole = { 0, 0, f.iSw, f.iSh };
+	f.Compute(whole, EFalse);
 
 	// The guest desktop (its screen chunk, window server and Avkon's system servers) outlives LEGACY, as a phone's
 	// does: a later LEGACY reuses it. Taken down, the system-critical AknCapServer panicked (CONE 9) and faulted the
@@ -375,6 +620,23 @@ TInt Run()
 		}
 	RDebug::Printf("legacy: guest wserv %dx%d %s, surface %dx%d", f.iW, f.iH, reuse ? "reused" : "up", f.iSw, f.iSh);
 
+	TView view;
+	view.iUi = &ui;
+	view.iWs = &ws;
+	view.iSurface = reinterpret_cast<TUint32*>(surface.Base());
+	view.iGuestPix = guest.Base();
+	view.iFit = f;
+	view.iPad.Init(&ws, f.iSw, f.iSh, TInt(Le32(geo, 8)));
+	view.iKeyboardH = 0;
+	view.iMode = view.iLast = EPadNav;
+	view.iUid = 0;
+	view.iA = view.iB = 0;
+	view.iGuestDown = EFalse;
+	view.ReadSettings();
+	ui.SettingWatch(_L8("legacy.pad."));
+	if (reuse)
+		view.iPad.Sweep();	// the guest desktop outlived a LEGACY: no key may stay held from it
+
 	// Avkon's system servers: AknCapServer, which brings up EikSrv and the skin server. A 2010 phone starts them at boot
 	// (the starter's AknCapServerStart, the same call); started by the first app instead, their windows took the focus
 	// in its start-up, and Frozen Bubble lost the foreground before its first idle callback (KERN-EXEC 3)
@@ -399,6 +661,8 @@ TInt Run()
 		running = ETrue;
 		ui.Nav(KNavBack | KNavOptions);
 		ui.Front(ETrue);
+		view.iMode = EPadModes;
+		view.SetMode(EPadNav, EFalse);		// no app UID: nothing remembered
 		}
 	else
 		{
@@ -437,10 +701,7 @@ TInt Run()
 		if (tick != KRequestPending)
 			{
 			if (running && visible)
-				{
-				Blit(f, guest.Base(), reinterpret_cast<TUint32*>(surface.Base()));
-				ui.Damage(f.iDx, f.iDy, f.iDw, f.iDh);
-				}
+				view.Frame();
 			if (running && app.ExitType() != EExitPending)
 				{
 				TExitCategoryName cat = app.ExitCategory();
@@ -450,6 +711,7 @@ TInt Run()
 					reinterpret_cast<const char*>(cat8.PtrZ()));
 				app.Close();
 				running = EFalse;
+				view.Close();
 				if (program.Length())
 					alive = EFalse;		// the command line's program: LEGACY ends with it
 				else
@@ -467,30 +729,43 @@ TInt Run()
 			break;
 		const TUint kind = Le32(ev, 0), a = Le32(ev, 4), b = Le32(ev, 8), c = Le32(ev, 12);
 		if (kind == KTouch && running)
-			{
-			TInt gx, gy;
-			const TUint phase = a & 0xFF;
-			if (f.ToGuest(b, c, gx, gy))
-				{
-				TRawEvent raw;
-				raw.Set(phase == 0 ? TRawEvent::EButton1Down : phase == 2 ? TRawEvent::EButton1Up
-					: TRawEvent::EPointerMove, gx, gy);
-				ws.SimulateRawEvent(raw);
-				ws.Flush();
-				if (phase != 1)
-					RDebug::Printf("legacy: raw %d %d %d", raw.Type(), gx, gy);
-				}
-			}
+			view.Touch(a, b, c);
 		else if (kind == KKey && a && running)
 			{
-			const TInt scan = ScanCode(b);
-			if (scan)
+			if (view.iMode == EPadAbc)
+				view.Type(b);		// the system keyboard's characters, any script
+			else if (const TInt scan = ScanCode(b))
 				Key(ws, scan);
 			}
 		else if (kind == KOptions && running)
 			Key(ws, EStdKeyDevice0);		// the left softkey (Options)
+		else if (kind == KKeyboardEvent && running && view.iMode == EPadAbc)
+			{
+			if (a == 0)
+				view.SetMode(view.iLast);	// the keyboard's chevron: back to the pad
+			else
+				{
+				view.iKeyboardH = a;
+				view.Layout();
+				}
+			}
+		else if (kind == KSettings)
+			{
+			view.ReadSettings();
+			if (running)
+				{
+				view.ReleaseInput();
+				view.Layout();
+				}
+			}
 		else if (kind == KVisible)
+			{
 			visible = a != 0;
+			if (!visible)
+				view.ReleaseInput();
+			else if (running)
+				view.Layout();
+			}
 		else if (kind == KEntryEvent)
 			{
 			TInt i = apps.Count();
@@ -504,9 +779,9 @@ TInt Run()
 				if (err == KErrNone)
 					{
 					running = ETrue;
-					Mem::FillZ(surface.Base(), f.iSw * f.iSh * 4);
 					ui.Nav(KNavBack | KNavOptions);
 					ui.Front(ETrue);
+					view.Open(apps[i]);
 					}
 				}
 			else
@@ -515,6 +790,7 @@ TInt Run()
 		else if (kind == KBack && running && !program.Length())
 			{
 			// shortcut: killed, not asked to exit (TApaTask::EndTask needs its window group): unsaved data is lost
+			view.Close();
 			app.Kill(0);
 			app.Close();
 			running = EFalse;
