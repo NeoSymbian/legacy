@@ -5,7 +5,7 @@ TARGET          legacy.exe
 TARGETTYPE      exe
 UID             0x100039CE 0xE0002006
 SOURCEPATH      .
-SOURCE          legacy.cpp
+SOURCE          legacy.cpp pad.cpp
 
 #include <platform_paths.hrh>
 OS_LAYER_SYSTEMINCLUDE
