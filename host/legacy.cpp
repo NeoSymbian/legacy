@@ -117,6 +117,19 @@ void Blit(const TFit& aF, const TUint8* aGuest, TUint32* aSurface)
 		}
 	}
 
+// The console: the guest turned a quarter (the phone's top to the left), aF in canvas coordinates (TPad::ToCanvas)
+void BlitTurned(const TFit& aF, const TUint8* aGuest, TUint32* aSurface)
+	{
+	for (TInt u = 0; u < aF.iDw; ++u)
+		{
+		const TInt sx = u * aF.iW / aF.iDw;
+		TUint32* dst = aSurface + (aF.iSh - 1 - (aF.iDx + u)) * aF.iSw + aF.iDy;
+		for (TInt v = 0; v < aF.iDh; ++v)
+			dst[v] = 0xFF000000
+				| reinterpret_cast<const TUint32*>(aGuest + aF.iOffset + (v * aF.iH / aF.iDh) * aF.iStride)[sx];
+		}
+	}
+
 // neoui key codes (Unicode + Enter 13, Backspace 8, Esc 27, arrows 0xF807..0xF80A) -> standard scan codes
 TInt ScanCode(TUint aCode)
 	{
@@ -351,9 +364,11 @@ public:
 	TPadMode iMode, iLast;		// the pad now; the last of Nav, Game and Number (Hidden's and Abc's way back)
 	TUint32 iUid;
 	TUint8 iA, iB;				// the app's own A and B (0: Settings')
+	TBuf8<KTitleMax> iTitle;	// the app's name (its page)
 	TInt iGuestX, iGuestY;
 	TBool iGuestDown;
 	TInt iTick;				// the key vibration's amplitude (0: off)
+	TBool iConsole, iConsoleFirst;	// the Gamepad's landscape console now; a game's first open is in it
 
 	void ReadSettings()
 		{
@@ -367,16 +382,17 @@ public:
 		iEpoch = SettingInt(*iUi, _L8("legacy.pad.epoch"), 0);
 		const TInt strength = SettingInt(*iUi, _L8("legacy.pad.strength"), 1);
 		iTick = SettingInt(*iUi, _L8("legacy.pad.vibrate"), 1) ? (strength == 0 ? 40 : strength == 2 ? 110 : 70) : 0;
+		iConsoleFirst = SettingInt(*iUi, _L8("legacy.pad.console"), 0) == 1;
 		}
 
 	// the app's page: its name, Back stays in it (closes it); the shell drops its header, the pad has the softkeys
-	void Declare(const TOldApp& aApp)
+	void Declare(const TDesC8& aTitle)
 		{
 		TBuf8<6 + KTitleMax> page;
-		page.Append(KPageCanBack);
+		page.Append(KPageCanBack | (iConsole ? KPageFull : 0));
 		page.AppendFill(0, 4);
-		page.Append(aApp.iCaption.Length());
-		page.Append(aApp.iCaption);
+		page.Append(aTitle.Length());
+		page.Append(aTitle);
 		const TInt h = iUi->Page(page);
 		if (h > 0)
 			Resize(h);
@@ -406,7 +422,7 @@ public:
 		v.Append(1);
 		v.Append(iMode);
 		v.Append(iLast);
-		v.Append(0);		// orientation: portrait (the console is stage 3)
+		v.Append(iConsole ? 1 : 0);		// orientation: the console
 		v.Append(iA);
 		v.Append(iB);
 		for (TInt i = 0; i < 4; ++i)
@@ -420,8 +436,8 @@ public:
 	// told in a toast and saved at once so the toast shows once)
 	void Open(const TOldApp& aApp)
 		{
-		Declare(aApp);
 		iUid = aApp.iUid.iUid;
+		iTitle = aApp.iCaption;
 		iA = iB = 0;
 		TBuf8<32> key;
 		Key(key);
@@ -435,14 +451,17 @@ public:
 			iLast = v[3] <= EPadNumber ? TPadMode(v[3]) : EPadNav;
 			iA = v[5] <= 2 ? v[5] : 0;
 			iB = v[6] <= 3 ? v[6] : 0;
+			iConsole = v[4] == 1 && mode == EPadGame;
 			}
 		else
 			{
 			mode = iDefaultPad == 1 ? EPadNav : iDefaultPad == 2 ? EPadGame : iDefaultPad == 3 ? EPadNumber
 				: iUid == KFrozenBubble || aApp.iGame ? EPadGame : EPadNav;
 			iLast = mode;
+			iConsole = mode == EPadGame && iConsoleFirst;
 			}
 		ReadSettings();
+		Declare(iTitle);
 		iMode = EPadModes;		// SetMode lays out even when the mode is the default
 		SetMode(mode, EFalse);
 		if (!known)
@@ -493,10 +512,10 @@ public:
 
 	void Layout()
 		{
-		iPad.Layout(iMode, iMode == EPadAbc ? iKeyboardH : 0, iSet);
+		iPad.Layout(iMode, iMode == EPadAbc ? iKeyboardH : 0, iSet, iConsole);
 		iFit.Compute(iPad.Guest(), iMode != EPadHidden);
 		Mem::FillZ(iSurface, iFit.iSw * iFit.iSh * 4);
-		Blit(iFit, iGuestPix, iSurface);
+		Frame();
 		iPad.Draw(iSurface);
 		iUi->Damage(0, 0, iFit.iSw, iFit.iSh);
 		}
@@ -504,21 +523,33 @@ public:
 	// a tick: the guest's new frame (Hidden's button stays on top of it)
 	void Frame()
 		{
-		Blit(iFit, iGuestPix, iSurface);
+		if (iConsole)
+			BlitTurned(iFit, iGuestPix, iSurface);
+		else
+			Blit(iFit, iGuestPix, iSurface);
 		if (iMode == EPadHidden)
 			iPad.Draw(iSurface);
-		iUi->Damage(iFit.iDx, iFit.iDy, iFit.iDw, iFit.iDh);
+		const TPadRect shown = { iFit.iDx, iFit.iDy, iFit.iDw, iFit.iDh };
+		const TPadRect r = iPad.ToSurface(shown);
+		iUi->Damage(r.iX, r.iY, r.iW, r.iH);
 		}
 
+	// a contact of the guest's, at surface point aX, aY
 	void Guest(TInt aPhase, TInt aX, TInt aY)
 		{
-		iFit.ToGuest(aX, aY, iGuestX, iGuestY);
+		TInt u, v;
+		iPad.ToCanvas(aX, aY, u, v);
+		iFit.ToGuest(u, v, iGuestX, iGuestY);
+		GuestRaw(aPhase == 0 ? TRawEvent::EButton1Down : aPhase == 2 ? TRawEvent::EButton1Up : TRawEvent::EPointerMove);
+		}
+
+	void GuestRaw(TRawEvent::TType aType)
+		{
 		TRawEvent raw;
-		raw.Set(aPhase == 0 ? TRawEvent::EButton1Down : aPhase == 2 ? TRawEvent::EButton1Up : TRawEvent::EPointerMove,
-			iGuestX, iGuestY);
+		raw.Set(aType, iGuestX, iGuestY);
 		iWs->SimulateRawEvent(raw);
 		iWs->Flush();
-		iGuestDown = aPhase != 2;
+		iGuestDown = aType != TRawEvent::EButton1Up;
 		}
 
 	// everything held goes up: the app went to the background, closed, or the pad changed under the fingers
@@ -526,7 +557,24 @@ public:
 		{
 		iPad.ReleaseAll();
 		if (iGuestDown)
-			Guest(2, iFit.iDx + iGuestX * iFit.iDw / iFit.iW, iFit.iDy + iGuestY * iFit.iDh / iFit.iH);
+			GuestRaw(TRawEvent::EButton1Up);
+		}
+
+	// the console on or off (the Gamepad's ⟳ and Portrait): a full-screen page, the canvas turned
+	void SetConsole(TBool aOn)
+		{
+		ReleaseInput();
+		if (iMode == EPadAbc)
+			{
+			iUi->Keyboard(0);
+			iKeyboardH = 0;
+			}
+		iConsole = aOn;
+		iMode = EPadGame;
+		iLast = EPadGame;
+		Declare(iTitle);
+		Save();
+		Layout();
 		}
 
 	void Touch(TUint aA, TInt aX, TInt aY)
@@ -548,7 +596,7 @@ public:
 			iUi->Damage(r.iX, r.iY, r.iW, r.iH);
 			}
 		if (act & EPadRotate)
-			RDebug::Printf("legacy: the console comes in stage 3");
+			SetConsole(!iConsole);
 		}
 
 	// Abc: a typed character into the old app's focused editor, as a key event with its code (no FEP needed)
@@ -655,6 +703,7 @@ TInt Run()
 	view.iUid = 0;
 	view.iA = view.iB = 0;
 	view.iGuestDown = EFalse;
+	view.iConsole = EFalse;
 	view.ReadSettings();
 	ui.SettingWatch(_L8("legacy.pad."));
 	if (reuse)

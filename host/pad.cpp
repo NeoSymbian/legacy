@@ -61,6 +61,9 @@ void TPad::Init(RWsSession* aWs, TInt aW, TInt aH, TInt aDp256)
 	iDp256 = aDp256 > 0 ? aDp256 : 768;
 	iMode = iNewMode = EPadNav;
 	iItemCount = 0;
+	iConsole = EFalse;
+	iLw = aW;
+	iLh = aH;
 	for (TInt i = 0; i < KMaxContacts; ++i)
 		iContacts[i].iId = -1;
 	Mem::FillZ(iRef, sizeof(iRef));
@@ -92,11 +95,19 @@ void TPad::Add(TInt aKind, TInt aX, TInt aY, TInt aW, TInt aH, TInt aScan, TInt 
 	it.iRound = TUint8(aRound);
 	}
 
-void TPad::Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings)
+void TPad::Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings, TBool aConsole)
 	{
 	iMode = aMode;
 	iSet = aSettings;
 	iItemCount = 0;
+	iConsole = aConsole;
+	iLw = aConsole ? iH : iW;
+	iLh = aConsole ? iW : iH;
+	if (aConsole)
+		{
+		LayoutConsole();
+		return;
+		}
 	const TInt area = iH - aKeyboardH;
 	const TInt wdp = iW * 256 / iDp256;		// the surface's width in dp (360 on a phone)
 	const TInt h = Dp(KPadDp[aMode]);
@@ -175,6 +186,35 @@ void TPad::Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings
 		for (TInt i = 0; i < 12; ++i)
 			Add(KHeld, 12 + (i % 3) * (kw + 7), y + (i / 3) * 51, kw, 45, scans[i], glyphs[i], subs[i]);
 		}
+	}
+
+// The console (canvas: Old apps · Console): the guest in the middle, as tall as the canvas; the d-pad on one side and
+// A and B on the other (left-handed swaps them); Portrait and the softkeys along the top.
+void TPad::LayoutConsole()
+	{
+	const TInt gw = iLh * 360 / 640;		// the guest's aspect (its HAL screen)
+	iGuest.iX = (iLw - gw) / 2;
+	iGuest.iY = 0;
+	iGuest.iW = gw;
+	iGuest.iH = iLh;
+	iRect.iX = iRect.iY = 0;		// Draw fills the two sides
+	iRect.iW = iLw;
+	iRect.iH = iLh;
+	const TPadRect left = { 0, 0, iGuest.iX, iLh }, right = { iGuest.iX + gw, 0, iLw - iGuest.iX - gw, iLh };
+	iPanels[0] = left;
+	iPanels[1] = right;
+	const TInt pw = left.iW * 256 / iDp256, ph = iLh * 256 / iDp256, rx = right.iX * 256 / iDp256;
+	// along the top: Portrait and the left softkey on the left, the right softkey on the right
+	Add(KRotate, 12, 12, 104, 36, 0, EGlyphPortrait);
+	Add(KOnce, pw - 12 - 90, 12, 90, 36, EStdKeyDevice0, -1, -1, ETintBar);
+	Add(KOnce, rx + 12, 12, 90, 36, EStdKeyDevice1, -1, -1, ETintBar);
+	// the d-pad and the buttons, centred on their sides below the top row
+	const TInt side = Min(170, Min(pw - 40, ph - 90));
+	const TInt dpadX = (iSet.iLefty ? rx : 0) + (pw - side) / 2, y = 60 + (ph - 60 - side) / 2;
+	Add(KDpad, dpadX, y, side, side);
+	const TInt bx = (iSet.iLefty ? 0 : rx) + pw / 2;
+	Add(KHeld, bx + 20, y + 10, 68, 68, iSet.iB, EGlyphB, -1, ETintText, 0, ETrue);
+	Add(KHeld, bx - 80, y + side - 84, 84, 84, iSet.iA, EGlyphA, -1, ETintText, 0, ETrue);
 	}
 
 // --- touch ---
@@ -272,8 +312,10 @@ void TPad::Finish(TContact& aC)
 	aC.iId = -1;
 	}
 
-TInt TPad::Touch(TInt aId, TInt aPhase, TInt aX, TInt aY)
+TInt TPad::Touch(TInt aId, TInt aPhase, TInt aSx, TInt aSy)
 	{
+	TInt aX, aY;
+	ToCanvas(aSx, aSy, aX, aY);
 	TContact* c = Find(aId);
 	if (aPhase == 0)	// down: the contact's owner, for its whole life
 		{
@@ -453,13 +495,12 @@ void TPad::Fill(TUint32* aS, const TPadRect& aR, TInt aRad, TUint32 aColour)
 	{
 	aRad = Min(aRad, Min(aR.iW, aR.iH) / 2);
 	const TUint8* corner = aRad > 0 ? Corner(aRad) : NULL;
-	const TInt y0 = Max(aR.iY, 0), y1 = Min(aR.iY + aR.iH, iH);
-	const TInt x0 = Max(aR.iX, 0), x1 = Min(aR.iX + aR.iW, iW);
+	const TInt y0 = Max(aR.iY, 0), y1 = Min(aR.iY + aR.iH, iLh);
+	const TInt x0 = Max(aR.iX, 0), x1 = Min(aR.iX + aR.iW, iLw);
 	for (TInt y = y0; y < y1; ++y)
 		{
 		const TInt top = y - aR.iY, bottom = aR.iY + aR.iH - 1 - y;
 		const TInt j = top < aRad ? top : bottom < aRad ? bottom : -1;
-		TUint32* row = aS + y * iW;
 		for (TInt x = x0; x < x1; ++x)
 			{
 			TInt a = 255;
@@ -471,7 +512,10 @@ void TPad::Fill(TUint32* aS, const TPadRect& aR, TInt aRad, TUint32 aColour)
 					a = corner[j * aRad + i];
 				}
 			if (a)
-				row[x] = Mix(row[x], aColour, a);
+				{
+				TUint32& p = Px(aS, x, y);
+				p = Mix(p, aColour, a);
+				}
 			}
 		}
 	}
@@ -487,13 +531,13 @@ void TPad::Glyph(TUint32* aS, TInt aGlyph, TInt aCx, TInt aCy, TUint32 aColour)
 	for (TInt dy = 0; dy < dh; ++dy)
 		{
 		const TInt y = y0 + dy;
-		if (y < 0 || y >= iH)
+		if (y < 0 || y >= iLh)
 			continue;
 		const TInt sy0 = dy * g.iH / dh, sy1 = Max(sy0 + 1, (dy + 1) * g.iH / dh);
 		for (TInt dx = 0; dx < dw; ++dx)
 			{
 			const TInt x = x0 + dx;
-			if (x < 0 || x >= iW)
+			if (x < 0 || x >= iLw)
 				continue;
 			const TInt sx0 = dx * g.iW / dw, sx1 = Max(sx0 + 1, (dx + 1) * g.iW / dw);
 			TInt sum = 0;
@@ -502,7 +546,10 @@ void TPad::Glyph(TUint32* aS, TInt aGlyph, TInt aCx, TInt aCy, TUint32 aColour)
 					sum += src[sy * g.iW + sx];
 			const TInt a = sum / ((sy1 - sy0) * (sx1 - sx0));
 			if (a)
-				aS[y * iW + x] = Mix(aS[y * iW + x], aColour, a);
+				{
+				TUint32& p = Px(aS, x, y);
+				p = Mix(p, aColour, a);
+				}
 			}
 		}
 	}
@@ -524,7 +571,7 @@ void TPad::Triangle(TUint32* aS, TInt aCx, TInt aCy, const TInt* aPts, TUint32 a
 	for (TInt y = aCy - half - 1; y <= aCy + half + 1; ++y)
 		for (TInt x = aCx - half - 1; x <= aCx + half + 1; ++x)
 			{
-			if (x < 0 || y < 0 || x >= iW || y >= iH)
+			if (x < 0 || y < 0 || x >= iLw || y >= iLh)
 				continue;
 			TInt hits = 0;
 			for (TInt sy = 0; sy < 4; ++sy)
@@ -541,14 +588,22 @@ void TPad::Triangle(TUint32* aS, TInt aCx, TInt aCy, const TInt* aPts, TUint32 a
 					hits += in;
 					}
 			if (hits)
-				aS[y * iW + x] = Mix(aS[y * iW + x], aColour, hits * 255 / 16);
+				{
+				TUint32& p = Px(aS, x, y);
+				p = Mix(p, aColour, hits * 255 / 16);
+				}
 			}
 	}
 
 void TPad::Draw(TUint32* aS)
 	{
 	const TInt border = Max(1, Dp(1) / 2);
-	if (iMode != EPadHidden)
+	if (iConsole)
+		{
+		Fill(aS, iPanels[0], 0, KBg);
+		Fill(aS, iPanels[1], 0, KBg);
+		}
+	else if (iMode != EPadHidden)
 		{
 		Fill(aS, iRect, 0, KBg);
 		TPadRect line = { iRect.iX, iRect.iY, iRect.iW, Max(1, Dp(1) / 2) };

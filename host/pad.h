@@ -45,7 +45,24 @@ public:
 	void Init(RWsSession* aWs, TInt aW, TInt aH, TInt aDp256);
 	void Resize(TInt aW, TInt aH) { iW = aW; iH = aH; }		// lay out again after it
 	// lays the pad out for aMode in a surface aW x aH whose bottom aKeyboardH pixels are the system keyboard's
-	void Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings);
+	// aConsole: the Gamepad's landscape console (the phone sideways, its top to the left): the pad and the guest are
+	// laid out on a landscape canvas, drawn rotated into the portrait surface
+	void Layout(TPadMode aMode, TInt aKeyboardH, const TPadSettings& aSettings, TBool aConsole = EFalse);
+	TBool Console() const { return iConsole; }
+	// a surface point on the canvas Guest() and Rect() are in (the same point unless in the console)
+	void ToCanvas(TInt aX, TInt aY, TInt& aU, TInt& aV) const
+		{
+		aU = iConsole ? iH - 1 - aY : aX;
+		aV = iConsole ? aX : aY;
+		}
+	// a canvas rect as the surface rect it covers
+	TPadRect ToSurface(const TPadRect& aR) const
+		{
+		if (!iConsole)
+			return aR;
+		const TPadRect r = { aR.iY, iH - aR.iX - aR.iW, aR.iH, aR.iW };
+		return r;
+		}
 	TPadMode Mode() const { return iMode; }
 	TPadMode NewMode() const { return iNewMode; }
 	const TPadRect& Guest() const { return iGuest; }	// where the guest screen fits (aspect kept, at its top)
@@ -75,6 +92,10 @@ private:
 	void Add(TInt aKind, TInt aX, TInt aY, TInt aW, TInt aH, TInt aScan = 0, TInt aGlyph = -1, TInt aSub = -1,
 		TInt aTint = 0, TInt aArg = 0, TBool aRound = EFalse);
 	TInt Dp(TInt aDp) const { return aDp * iDp256 / 256; }
+	void LayoutConsole();
+	// the surface pixel under canvas point (aU, aV), which must be on the canvas
+	TUint32& Px(TUint32* aS, TInt aU, TInt aV) const
+		{ return iConsole ? aS[(iH - 1 - aU) * iW + aV] : aS[aV * iW + aU]; }
 	TInt Hit(TInt aX, TInt aY) const;
 	TInt Zone(const TItem& aDpad, TInt aX, TInt aY) const;
 	TInt ZoneKeys(TInt aZone, TUint8* aKeys) const;
@@ -92,7 +113,10 @@ private:
 	const TUint8* Corner(TInt aRad);
 
 	RWsSession* iWs;
-	TInt iW, iH, iDp256;
+	TInt iW, iH, iDp256;		// the surface
+	TBool iConsole;
+	TInt iLw, iLh;				// the canvas (the surface, or turned for the console)
+	TPadRect iPanels[2];		// the console's sides
 	TPadMode iMode, iNewMode;
 	TPadSettings iSet;
 	TPadRect iRect, iGuest;
