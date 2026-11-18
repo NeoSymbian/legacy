@@ -240,7 +240,11 @@ COMPONENTS = {
     "estlib": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/BMMP/ESTLIB.MMP", c_sources=True, defs=OPENC_DEFS),
     "redircli": dict(mmp=f"{OSSRV}/genericopenlibs/cstdlib/RedirCli/REDIRCLI.MMP"),
     "c32": dict(mmp="oss.FCL.sf.os.commsfw/serialserver/c32serialserver/group/C32.MMP"),
-    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp", c_sources=True, defs=OPENC_DEFS),
+    "libc": dict(mmp=f"{OPENC}/libc/group/libc.mmp", c_sources=True, defs=OPENC_DEFS,
+                 # NeoSymbian: a C library is built without GCC builtins, or GCC turns memset.c/bzero.c loops into
+                 # memset calls and calloc.c's malloc+bzero into a calloc call: libc.dll recursing into itself
+                 # (KERN-EXEC 3 on the first calloc)
+                 flags=["-fno-builtin", "-fno-tree-loop-distribute-patterns"]),
     "libm": dict(mmp=f"{OPENC}/libm/group/libm.mmp", c_sources=True, defs=OPENC_DEFS),
     "libpthread": dict(mmp=f"{OPENC}/libpthread/group/libpthread.mmp", c_sources=True, defs=OPENC_DEFS),
     "backend": dict(mmp=f"{OPENC}/backend/group/backend.mmp", c_sources=True, defs=OPENC_DEFS),
