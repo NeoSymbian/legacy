@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: Apache-2.0
+// The 2010 DevSound ABI over NeoAudio; no ACF or import-only adaptation DLLs.
+TARGET          mmfdevsoundadaptor.dll
+TARGETTYPE      dll
+UID             0x1000008D 0x10207ABC
+CAPABILITY      All -TCB -AllFiles -DiskAdmin -NetworkControl -SwEvent -TrustedUI
+VENDORID        0x70000001
+
+SOURCEPATH      src
+SOURCE          mmfdevsoundadaptation.cpp neoaudio.cpp
+USERINCLUDE     inc
+USERINCLUDE     ../../oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/inc
+USERINCLUDE     ../../oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/src/devsoundadaptor
+USERINCLUDE     ../../oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/src/a3ffourcclookup
+USERINCLUDE     ../../oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/src/mmfaudioserver
+
+#include <platform_paths.hrh>
+OS_LAYER_SYSTEMINCLUDE_SYMBIAN
+
+// The frozen typeinfo DATA exports use the existing runtime's metadata vtable.
+LIBRARY         euser.lib mmfserverbaseclasses.lib mmfcontrollerframework.lib drtaeabi.lib
+DEFFILE         mmfdevsoundadaptor.def
+NOSTRICTDEF
+SMPSAFE

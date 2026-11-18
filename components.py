@@ -174,14 +174,48 @@ COMPONENTS = {
     "etelmm": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyserver/etelmultimode/group/etelmm.mmp"),
     "etel3rdparty": dict(mmp="oss.FCL.sf.os.cellularsrv/telephonyutils/etel3rdpartyapi/Group/Etel3rdParty.mmp"),
     "mediaclientaudio": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudio.mmp"),
-    # CMdaAudioOutputStream (Frozen Bubble imports it) and the DevSound client it opens. There is no audio server
-    # (mmfaudioserver.exe) yet: opening DevSound fails with KErrNotFound, so apps run silent.
+    # CMdaAudioOutputStream (Frozen Bubble imports it) and the DevSound client it opens
     "mediaclientaudiostream": dict(
         mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudioStream.mmp"),
     "mediaclient": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClient.mmp"),
     "mmfdevsound": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsound.mmp"),
     "mmfdevsoundproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsoundproxy.mmp"),
     "mmfaudioserverproxy": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfaudioserverproxy.mmp"),
+    # our DevSound adaptation streams PCM to NeoAudio instead of the missing ACF/MMRC stack
+    "mmfdevsoundadaptor": dict(mmp="legacy/audio/mmfdevsoundadaptor.mmp"),
+    # the original root audio server creates and monitors a DevSound server thread per client
+    "mmfaudioserver": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfaudioserver.mmp"),
+    # the original root server's ECom extension factory (no extensions are required for PCM)
+    "mmfaudioserverfactory": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfaudioserverfactory.mmp"),
+    # the original DevSound sessions retain their IPC and observer protocol over our adaptor
+    "mmfdevsoundserver": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/mmfdevsoundserver.mmp"),
+    # root server construction resolves FOURCCs from ECom's format metadata
+    "a3ffourcclookup": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/a3ffourcclookup.mmp"),
+    # the lookup's registration RSS includes PCM16; TARGETTYPE plugin installs its ECom resource
+    "a3ffourccconvertorplugin": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3fdevsound/mmpfiles/a3fFourCCConvertorPlugin.mmp"),
+    # the FOURCC lookup's real trace support DLL (the original MMP allows its writable statics)
+    "a3f_trace_heap": dict(mmp="oss.FCL.sf.os.mmaudio/devsound/a3ftrace/mmpfiles/a3f_trace_heap.mmp"),
+    # the stock proxy launches this exact EXE/UID3 and waits until !MMFAudioServer is ready
+    "mmfaudioserverstart": dict(mmp="legacy/audio/mmfaudioserverstart.mmp"),
+    # A4: CMdaAudioPlayerUtility's WAV path (docs/audio.md): the MMF audio controller (the 2010 tree names it
+    # mmfaudiowavtestcontroller.dll), the WAV format, the file/descriptor source and the audio output/input sinks
+    # (they open DevSound), the PCM codecs, the format base classes and standard custom commands
+    "mmfaudiowavtestcontroller": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/MmfAudioController.mmp"),
+    "mmfwavformat": dict(mmp="oss.FCL.sf.os.mmaudio/mmplugins/mmfwplugins/MMPFiles/Plugin/MmfWAVFormat.mmp"),
+    "mmfstdsourceandsinkplugin": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/MmfStdSourceAndSinkPlugin.mmp"),
+    "mmfaudiooutput": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/mmfaudiooutput.mmp"),
+    "mmfaudioinput": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/mmfaudioinput.mmp"),
+    "mmflinearaudiocodecs": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/MMFLinearAudioCodecs.mmp"),
+    "mmfformatbaseclasses": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/plugin_common/MMFFormatBaseClasses.mmp"),
+    "mmfstandardcustomcommands": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/ControllerFramework/MmfStandardCustomCommands.mmp"),
+    # the recording client (CMdaAudioInputStream) and MediaClientUtility (the player's helpers)
+    "mediaclientaudioinputstream": dict(
+        mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientAudioInputStream.mmp"),
+    "mediaclientutility": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmfw/MMPFiles/client/MediaClientUtility.mmp"),
     "mmcommonutils": dict(mmp="oss.FCL.sf.os.mmaudio/mmlibs/mmutilitylib/mmpfiles/MMCommonUtils.mmp"),
     # the MMF message types DevSound's proxy is made of (RMMFDevSoundProxy's constructor builds a
     # TMMFMessageDestination: a panic stub killed Frozen Bubble's mixer thread)
