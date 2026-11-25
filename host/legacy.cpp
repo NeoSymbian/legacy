@@ -552,6 +552,8 @@ public:
 		iWs->SimulateRawEvent(raw);
 		iWs->Flush();
 		iGuestDown = aType != TRawEvent::EButton1Up;
+		if (aType != TRawEvent::EPointerMove)				// neoui's virt UI CI checks a touch reached the old app
+			RDebug::Printf("legacy: raw %d %d %d", aType, iGuestX, iGuestY);
 		}
 
 	// everything held goes up: the app went to the background, closed, or the pad changed under the fingers
