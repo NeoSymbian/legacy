@@ -332,7 +332,7 @@ def install(names, out_dir):
 
 
 def rom_dlls(rom_args: str):
-    """{dll name: export count} for every image the ROM carries (kernel/build_rom.sh's rombuild.args)."""
+    """{dll name: export count} for every image the ROM carries (build's .ekern-build/rombuild.args)."""
     out = {}
     args = _read(rom_args).decode().split("\n")
     for spec in args:

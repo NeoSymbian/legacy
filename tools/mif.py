@@ -22,8 +22,8 @@ import sys
 
 LEGACY = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # this repo (NeoSymbian/legacy, build's src/legacy)
 REPO = os.environ.get("NEO_BUILD", os.getcwd())  # the NeoSymbian/build checkout this runs in (its build steps run from its root)
-sys.path.insert(0, os.path.join(REPO, "tools"))
-from rombuild import uid_checksum  # noqa: E402 (build's tools/: the UID checksum, TCheckedUid)
+sys.path.insert(0, os.path.join(REPO, "emitter"))
+from e32image import uid_checksum  # noqa: E402 (build's emitter/: the UID checksum, TCheckedUid)
 MBG = os.path.join(REPO, ".epoc32", "include", "avkon.mbg")
 OUT = os.path.join(REPO, "emitter", "avkon2.mif")
 FILE_UID, ICON_UID = 0x34232342, 0x34232343
