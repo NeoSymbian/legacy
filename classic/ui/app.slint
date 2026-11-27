@@ -12,10 +12,13 @@ import { Theme, Kit, Scroll, Header, NeoList } from "@neoui/kit.slint";
 
 export { Theme, Kit, Scroll }
 
-export struct OldApp { id: int, name: string }
+// `has-icon`: the app's own launcher icon came with it (ENTRY_THUMB), else the generic one
+export struct OldApp { id: int, name: string, icon: image, has-icon: bool }
 
 export global Classic {
     in property <[OldApp]> apps;
+    // the apps the bridge had to leave out (INFO_APPS' total over what it lists)
+    in property <int> more;
     // false: this UI server can't list them (older than protocol 1.14)
     in property <bool> ok: true;
     callback open(int);
@@ -43,7 +46,17 @@ export component ClassicApp inherits Window {
                 vertical-alignment: center;
             }
             NeoList {
-                content-height: 12 * Theme.dp + grid.rows * Theme.app-row-h;
+                content-height: 12 * Theme.dp + grid.rows * Theme.app-row-h + (Classic.more > 0 ? 48 * Theme.dp : 0);
+                if Classic.more > 0: Text {
+                    y: 12 * Theme.dp + grid.rows * Theme.app-row-h;
+                    height: 48 * Theme.dp;
+                    width: parent.width;
+                    text: "+" + Classic.more + " more";
+                    color: Theme.text-secondary;
+                    font-size: Theme.font-label;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
                 for app[i] in Classic.apps: Rectangle {
                     x: Math.mod(i, grid.cols) * grid.cell-w;
                     y: 12 * Theme.dp + Math.floor(i / grid.cols) * Theme.app-row-h;
@@ -60,14 +73,12 @@ export component ClassicApp inherits Window {
                         background: touch.pressed ? Theme.pressed : transparent;
                     }
 
-                    // shortcut: one generic icon; INFO_APPS has no icons (the shell keeps the bridge's), add them to
-                    // the protocol when the grid should show each app's own
                     Image {
                         x: (parent.width - Theme.app-icon) / 2;
                         y: 12 * Theme.dp;
                         width: Theme.app-icon;
                         height: Theme.app-icon;
-                        source: @image-url("@neoui/icons/apps/legacy.svg");
+                        source: app.has-icon ? app.icon : @image-url("@neoui/icons/apps/legacy.svg");
                         image-fit: contain;
                     }
 
