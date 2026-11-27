@@ -1,0 +1,2 @@
+# For NeoSymbian/build rust/exes.txt: copy this line and target/armv8a-neosymbian-eabi/release/libclassic.a into build/rust/.
+CLASSIC.EXE    0xE0002008  libclassic.a

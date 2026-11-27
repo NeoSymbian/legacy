@@ -1,0 +1,95 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// CLASSIC.EXE: the old S60 apps LEGACY.EXE registered (protocol 1.14 INFO_APPS), in a 3-column grid (4 in landscape)
+// under the kit header (the canvas's oldapps-list / oldapps-empty boards, moved out of the shell's Old apps screen).
+// A tap asks the shell to open the app (ACTION_OPEN_ENTRY); the bridge then brings it to the front.
+import "@neoui/fonts/NeoSans-Regular.ttf";
+import "@neoui/fonts/NeoSans-Medium.ttf";
+import "@neoui/fonts/NeoSans-SemiBold.ttf";
+import "@neoui/fonts/NeoSans-Bold.ttf";
+// an S60 app's caption in any script
+import "@neoui/fonts/DejaVuSans.ttf";
+import { Theme, Kit, Scroll, Header, NeoList } from "@neoui/kit.slint";
+
+export { Theme, Kit, Scroll }
+
+export struct OldApp { id: int, name: string }
+
+export global Classic {
+    in property <[OldApp]> apps;
+    // false: this UI server can't list them (older than protocol 1.14)
+    in property <bool> ok: true;
+    callback open(int);
+}
+
+export component ClassicApp inherits Window {
+    default-font-family: "NeoSans";
+    background: Theme.bg;
+    VerticalLayout {
+        Header {
+            title: "Classic apps";
+            search: false;
+        }
+
+        grid := Rectangle {
+            vertical-stretch: 1;
+            property <int> cols: self.width > self.height ? 4 : 3;
+            property <length> cell-w: self.width / cols;
+            property <int> rows: Math.ceil(Classic.apps.length / cols);
+            if Classic.apps.length == 0: Text {
+                text: Classic.ok ? "No classic apps installed" : "This UI server can't list classic apps.";
+                color: Theme.text-secondary;
+                font-size: Theme.font-label;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+            NeoList {
+                content-height: 12 * Theme.dp + grid.rows * Theme.app-row-h;
+                for app[i] in Classic.apps: Rectangle {
+                    x: Math.mod(i, grid.cols) * grid.cell-w;
+                    y: 12 * Theme.dp + Math.floor(i / grid.cols) * Theme.app-row-h;
+                    width: grid.cell-w;
+                    height: Theme.app-row-h;
+
+                    // pressed: a soft plate behind the icon
+                    Rectangle {
+                        x: (parent.width - Theme.app-icon) / 2 - 8 * Theme.dp;
+                        y: 4 * Theme.dp;
+                        width: Theme.app-icon + 16 * Theme.dp;
+                        height: Theme.app-icon + 16 * Theme.dp;
+                        border-radius: Theme.radius + 6 * Theme.dp;
+                        background: touch.pressed ? Theme.pressed : transparent;
+                    }
+
+                    // shortcut: one generic icon; INFO_APPS has no icons (the shell keeps the bridge's), add them to
+                    // the protocol when the grid should show each app's own
+                    Image {
+                        x: (parent.width - Theme.app-icon) / 2;
+                        y: 12 * Theme.dp;
+                        width: Theme.app-icon;
+                        height: Theme.app-icon;
+                        source: @image-url("@neoui/icons/apps/legacy.svg");
+                        image-fit: contain;
+                    }
+
+                    Text {
+                        y: 12 * Theme.dp + Theme.app-icon + Theme.app-label-gap;
+                        x: 4 * Theme.dp;
+                        width: parent.width - 8 * Theme.dp;
+                        text: app.name;
+                        font-family: "DejaVu Sans";
+                        color: Theme.text-secondary;
+                        font-size: Theme.font-label;
+                        horizontal-alignment: center;
+                        overflow: elide;
+                    }
+
+                    touch := TouchArea {
+                        clicked => {
+                            Classic.open(app.id);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
