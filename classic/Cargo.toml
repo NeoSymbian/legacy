@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# CLASSIC.EXE, Classic apps: the old S60 apps LEGACY.EXE registered, as a neoui kit app (docs user-side/legacy.md).
+# Its own workspace, built only for targets/armv8a-neosymbian-eabi.json with a pinned nightly (build-std), like
+# neoui/symbian. GPL-3.0 because it links Slint under GPL-3.0 (NeoSymbian decision 2026-11-06); the rest of this repo is
+# Apache-2.0. The pins must match neoui's symbian/Cargo.toml: one e32 and one Slint in the ROM.
+[package]
+name = "classic"
+description = "CLASSIC.EXE: Classic apps, the old S60 apps the legacy bridge runs, in a neoui kit grid"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+test = false
+
+[dependencies]
+e32 = { git = "https://github.com/NeoSymbian/e32-rs", rev = "7d6ab96f8bc7a062f750dac3a0c9fe3e640cc359", features = ["critical-section"] }
+neoui-proto = { git = "https://github.com/NeoSymbian/neoui", rev = "c2c95d5fd4785c37bd550b69ebf76383eb75969d" }
+neoapp = { git = "https://github.com/NeoSymbian/neoui", rev = "c2c95d5fd4785c37bd550b69ebf76383eb75969d" }
+slint = { version = "=1.18.1", default-features = false, features = ["compat-1-2", "unsafe-single-threaded", "libm", "renderer-software"] }
+
+[build-dependencies]
+# compiles ui/app.slint with the kit (@neoui/kit.slint)
+neoui-kit = { git = "https://github.com/NeoSymbian/neoui", rev = "c2c95d5fd4785c37bd550b69ebf76383eb75969d" }
+
+[workspace]
+
+[profile.release]
+panic = "abort"
+opt-level = 3
+codegen-units = 1
+lto = true
+
+[profile.dev]
+panic = "abort"

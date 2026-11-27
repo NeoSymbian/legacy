@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// LEGACY.EXE -- the old Symbian apps inside neoui (NeoSymbian/legacy): neoui's "Old apps" screen and its guest window
-// server.
+// LEGACY.EXE -- the old Symbian apps inside neoui (NeoSymbian/legacy): the bridge behind Classic apps (classic/) and
+// its guest window server.
 //
 // neoui owns the display and the input, so the stock window server cannot. This neoui app:
 //   1. makes the global chunk "NeoUiLegacy": a header with the guest screen's geometry (360x640, the nHD screen the
@@ -9,12 +9,12 @@
 //      the patched window server (WSTOP.CPP, EVENT.CPP) runs as a guest: no display or event-hook ownership;
 //   2. starts EWSRV.EXE -NoShell, and keeps it while it runs: one guest desktop for every old app;
 //   3. asks AppArc (the apparc server) for the installed apps and sends each one, with its icon rasterized by Avkon's
-//      icon server, to neoui as a launcher entry (protocol 1.6 ENTRY): neoui draws the Old apps grid;
+//      icon server, to neoui as a launcher entry (protocol 1.6 ENTRY): Classic apps lists them;
 //   4. on a tap (the Entry event) starts that app through AppArc and brings its surface to the front (FRONT): the
 //      guest screen, scaled to fit, with neoui's taps and keys turned into raw events for the guest window server
-//      (RWsSession::SimulateRawEvent). Back or the app's end closes the app and gives the grid back.
+//      (RWsSession::SimulateRawEvent). Back or the app's end closes the app: back to Classic apps.
 //   5. under the guest, an on-screen key pad (pad.cpp: Navigator, Gamepad, Number, Abc, Hidden), remembered per app as
-//      the setting legacy.<uid>.pad, its options from Settings → Old apps (legacy.pad.*).
+//      the setting legacy.<uid>.pad, its options from Settings → Classic apps (legacy.pad.*).
 // With a program on the command line ("grid", the MiniGUI test app) it runs that one at once, as before AppArc.
 
 #include <e32base.h>
